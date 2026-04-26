@@ -1,0 +1,110 @@
+<div *ngIf="isAuthenticated(); else authLayout" class="min-h-screen bg-background text-on-background">
+  <aside class="fixed left-0 top-0 z-30 hidden h-screen w-64 flex-col border-r border-outline-variant bg-surface-container-low p-4 md:flex">
+    <div class="mb-8 flex items-center gap-3 px-4">
+      <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-on-primary">
+        <span class="material-symbols-outlined fill text-[18px]">corporate_fare</span>
+      </div>
+      <div>
+        <h1 class="font-h3 text-h3 font-black uppercase tracking-wider text-on-surface">Enterprise OS</h1>
+        <p class="font-label-md text-label-md text-on-surface-variant">Task Management</p>
+      </div>
+    </div>
+
+    <button
+      routerLink="/tasks"
+      class="mb-6 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 font-label-lg text-label-lg text-on-primary shadow-sm transition-all hover:-translate-y-px hover:shadow-md"
+      type="button"
+    >
+      <span class="material-symbols-outlined fill text-[18px]">add</span>
+      Create New Task
+    </button>
+
+    <nav class="flex-1 space-y-1">
+      <button class="enterprise-nav-link w-full text-left opacity-70" type="button">
+        <span class="material-symbols-outlined">dashboard</span>
+        Dashboard
+      </button>
+      <a routerLink="/tasks" routerLinkActive="enterprise-nav-link-active" [routerLinkActiveOptions]="{ exact: true }" class="enterprise-nav-link">
+        <span class="material-symbols-outlined">check_circle</span>
+        My Tasks
+      </a>
+      <a *ngIf="canViewAudit()" routerLink="/audit-log" routerLinkActive="enterprise-nav-link-active" class="enterprise-nav-link">
+        <span class="material-symbols-outlined">history</span>
+        Audit Logs
+      </a>
+      <button class="enterprise-nav-link w-full text-left opacity-70" type="button">
+        <span class="material-symbols-outlined">folder_open</span>
+        Projects
+      </button>
+      <button class="enterprise-nav-link w-full text-left opacity-70" type="button">
+        <span class="material-symbols-outlined">group</span>
+        Team
+      </button>
+      <button class="enterprise-nav-link w-full text-left opacity-70" type="button">
+        <span class="material-symbols-outlined">insert_chart</span>
+        Analytics
+      </button>
+    </nav>
+
+    <div class="mt-auto space-y-1 border-t border-outline-variant pt-4">
+      <button class="enterprise-nav-link w-full text-left opacity-70" type="button">
+        <span class="material-symbols-outlined">settings</span>
+        Settings
+      </button>
+      <button class="enterprise-nav-link w-full text-left opacity-70" type="button">
+        <span class="material-symbols-outlined">contact_support</span>
+        Support
+      </button>
+      <button class="enterprise-nav-link w-full text-left" type="button" (click)="logout()">
+        <span class="material-symbols-outlined">logout</span>
+        Sign Out
+      </button>
+    </div>
+  </aside>
+
+  <div class="min-h-screen md:ml-64">
+    <header class="fixed left-0 right-0 top-0 z-20 flex h-16 items-center justify-between border-b border-outline-variant/70 bg-surface-container-lowest/85 px-4 backdrop-blur-md md:left-64 md:px-8">
+      <div class="flex flex-1 items-center gap-4">
+        <div class="relative hidden w-full max-w-md sm:block">
+          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+          <input class="w-full rounded-lg border border-outline-variant bg-surface-container-low py-2 pl-10 pr-4 text-body-sm text-on-surface outline-none transition focus:border-primary focus:ring-1 focus:ring-primary" placeholder="Search tasks, projects, or people..." type="text" />
+        </div>
+        <div class="md:hidden">
+          <h2 class="font-h3 text-h3 font-black uppercase tracking-wider text-on-surface">Enterprise OS</h2>
+          <p class="font-label-sm text-label-sm text-on-surface-variant">Task Management</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 sm:gap-4">
+        <button class="taskcore-icon-button" type="button">
+          <span class="material-symbols-outlined">notifications</span>
+        </button>
+        <button class="taskcore-icon-button hidden sm:block" type="button">
+          <span class="material-symbols-outlined">help</span>
+        </button>
+        <button class="taskcore-icon-button" type="button" (click)="toggleTheme()">
+          <span class="material-symbols-outlined">{{ isDarkTheme() ? 'light_mode' : 'dark_mode' }}</span>
+        </button>
+        <div class="hidden h-8 w-px bg-outline-variant sm:block"></div>
+        <button class="flex items-center gap-2 rounded-full border border-transparent p-1 pr-3 transition-all hover:border-outline-variant hover:bg-surface-container-low" type="button">
+          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-primary-container text-xs font-semibold text-on-primary-container">
+            {{ initials() }}
+          </div>
+          <span class="hidden font-label-md text-label-md text-on-surface sm:block">{{ user()?.fullName }}</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="min-h-[calc(100vh-4rem)] bg-background px-4 pb-8 pt-20 md:px-margin">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+</div>
+
+<ng-template #authLayout>
+  <div class="min-h-screen bg-surface">
+    <router-outlet></router-outlet>
+  </div>
+</ng-template>
+
+<app-toast-outlet></app-toast-outlet>

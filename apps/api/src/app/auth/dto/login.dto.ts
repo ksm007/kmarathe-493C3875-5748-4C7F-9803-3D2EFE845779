@@ -1,0 +1,11 @@
+import { LoginRequest } from '@nx-temp/data';
+import { IsEmail, IsString, MinLength } from 'class-validator';
+
+export class LoginDto implements LoginRequest {
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  @MinLength(8)
+  password!: string;
+}
