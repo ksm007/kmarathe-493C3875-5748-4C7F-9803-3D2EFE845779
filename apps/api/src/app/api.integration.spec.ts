@@ -5,11 +5,19 @@ import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { newDb } from 'pg-mem';
 import { DataSource, Repository } from 'typeorm';
 import { Role, TaskCategory, TaskPriority, TaskStatus } from '@nx-temp/data';
+import { AiService } from './ai/ai.service';
 import { AuditService } from './audit/audit.service';
 import { AuthService } from './auth/auth.service';
+import { ChatRateLimiterService } from './chat/chat-rate-limiter.service';
+import { ChatService } from './chat/chat.service';
 import {
   AuditLogEntity,
+  ChatMessageEntity,
+  ChatPendingActionEntity,
+  LlmInteractionEntity,
   OrganizationEntity,
+  TaskActivityEntity,
+  TaskEmbeddingEntity,
   TaskEntity,
   UserEntity,
 } from './database/entities';
@@ -23,12 +31,19 @@ describe('API integration', () => {
   let usersRepository: Repository<UserEntity>;
   let tasksRepository: Repository<TaskEntity>;
   let auditRepository: Repository<AuditLogEntity>;
+  let taskActivitiesRepository: Repository<TaskActivityEntity>;
+  let taskEmbeddingsRepository: Repository<TaskEmbeddingEntity>;
+  let llmInteractionsRepository: Repository<LlmInteractionEntity>;
+  let chatMessagesRepository: Repository<ChatMessageEntity>;
+  let chatPendingActionsRepository: Repository<ChatPendingActionEntity>;
 
   let usersService: UsersService;
   let organizationsService: OrganizationsService;
   let auditService: AuditService;
+  let aiService: AiService;
   let authService: AuthService;
   let tasksService: TasksService;
+  let chatService: ChatService;
 
   beforeEach(async () => {
     const db = newDb({ autoCreateForeignKeyIndices: true });
@@ -43,7 +58,17 @@ describe('API integration', () => {
 
     dataSource = await db.adapters.createTypeormDataSource({
       type: 'postgres',
-      entities: [OrganizationEntity, UserEntity, TaskEntity, AuditLogEntity],
+      entities: [
+        OrganizationEntity,
+        UserEntity,
+        TaskEntity,
+        TaskActivityEntity,
+        TaskEmbeddingEntity,
+        AuditLogEntity,
+        ChatMessageEntity,
+        ChatPendingActionEntity,
+        LlmInteractionEntity,
+      ],
       synchronize: true,
     });
     await dataSource.initialize();
@@ -52,10 +77,27 @@ describe('API integration', () => {
     usersRepository = dataSource.getRepository(UserEntity);
     tasksRepository = dataSource.getRepository(TaskEntity);
     auditRepository = dataSource.getRepository(AuditLogEntity);
+    taskActivitiesRepository = dataSource.getRepository(TaskActivityEntity);
+    taskEmbeddingsRepository = dataSource.getRepository(TaskEmbeddingEntity);
+    llmInteractionsRepository = dataSource.getRepository(LlmInteractionEntity);
+    chatMessagesRepository = dataSource.getRepository(ChatMessageEntity);
+    chatPendingActionsRepository = dataSource.getRepository(ChatPendingActionEntity);
 
-    usersService = new UsersService(usersRepository);
     organizationsService = new OrganizationsService(organizationsRepository);
+    usersService = new UsersService(usersRepository, organizationsService);
     auditService = new AuditService(auditRepository);
+    const configService = new ConfigService({
+      CANARY_TOKEN: '__SYSTEM_BOUNDARY_42__',
+      MAX_CHAT_REQUESTS_PER_MINUTE: 20,
+    });
+    aiService = new AiService(
+      tasksRepository,
+      taskActivitiesRepository,
+      taskEmbeddingsRepository,
+      llmInteractionsRepository,
+      organizationsService,
+      configService
+    );
     authService = new AuthService(
       usersService,
       new JwtService({
@@ -70,8 +112,19 @@ describe('API integration', () => {
     tasksService = new TasksService(
       tasksRepository,
       organizationsRepository,
+      usersRepository,
+      taskActivitiesRepository,
       organizationsService,
-      auditService
+      auditService,
+      aiService
+    );
+    chatService = new ChatService(
+      chatMessagesRepository,
+      chatPendingActionsRepository,
+      aiService,
+      auditService,
+      tasksService,
+      new ChatRateLimiterService(configService)
     );
   });
 
@@ -118,7 +171,12 @@ describe('API integration', () => {
 
   it('blocks a viewer from updating tasks and records the denial', async () => {
     const { viewerUser, ownerUser } = await seedHierarchy();
-    const task = await createTask(ownerUser.id, ownerUser.organizationId, 'Locked task');
+    const task = await tasksService.createTask(toAuthUser(ownerUser), {
+      title: 'Locked task',
+      category: TaskCategory.Work,
+      priority: TaskPriority.Medium,
+      assigneeId: viewerUser?.id ?? null,
+    });
 
     await expect(
       tasksService.updateTask(toAuthUser(viewerUser), task.id, {
@@ -128,6 +186,57 @@ describe('API integration', () => {
 
     const auditEntries = await auditService.list(20);
     expect(auditEntries.some((entry) => entry.reason === 'viewer_read_only')).toBe(true);
+  });
+
+  it('limits viewer reads to created or assigned tasks within the org', async () => {
+    const { viewerUser, ownerUser } = await seedHierarchy();
+
+    await createTask(ownerUser.id, ownerUser.organizationId, 'Invisible task');
+    await tasksService.createTask(toAuthUser(ownerUser), {
+      title: 'Assigned task',
+      category: TaskCategory.Work,
+      priority: TaskPriority.Medium,
+      assigneeId: viewerUser?.id ?? null,
+    });
+
+    const visibleTasks = await tasksService.listTasks(toAuthUser(viewerUser), {});
+    expect(visibleTasks.map((task) => task.title)).toEqual(['Assigned task']);
+  });
+
+  it('creates and confirms a pending chat task mutation', async () => {
+    const { ownerUser } = await seedHierarchy();
+
+    const askResult = await chatService.ask(
+      toAuthUser(ownerUser),
+      'Create task to review auth logs tomorrow #security'
+    );
+
+    expect(askResult.pendingAction?.status).toBe('pending');
+    expect(askResult.message.pendingAction?.status).toBe('pending');
+
+    const confirmation = await chatService.confirmPendingAction(
+      toAuthUser(ownerUser),
+      askResult.pendingAction!.id
+    );
+
+    expect(confirmation.pendingAction.status).toBe('confirmed');
+    const tasks = await tasksService.listTasks(toAuthUser(ownerUser), {});
+    expect(tasks.some((task) => task.title.includes('review auth logs'))).toBe(true);
+  });
+
+  it('respects requested in-progress status on chat-created tasks', async () => {
+    const { ownerUser } = await seedHierarchy();
+
+    const askResult = await chatService.ask(
+      toAuthUser(ownerUser),
+      'Create a task to write unit tests for the user module and add it to in progress'
+    );
+
+    await chatService.confirmPendingAction(toAuthUser(ownerUser), askResult.pendingAction!.id);
+
+    const tasks = await tasksService.listTasks(toAuthUser(ownerUser), {});
+    const createdTask = tasks.find((task) => task.title === 'write unit tests for the user module');
+    expect(createdTask?.status).toBe(TaskStatus.InProgress);
   });
 
   async function seedHierarchy() {

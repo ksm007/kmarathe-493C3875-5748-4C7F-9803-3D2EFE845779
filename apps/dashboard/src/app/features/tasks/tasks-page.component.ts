@@ -20,9 +20,18 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { Role, Task, TaskCategory, TaskPriority, TaskStatus } from '@nx-temp/data';
+import {
+  Role,
+  Task,
+  TaskCategory,
+  TaskPriority,
+  TaskStatus,
+  UserSummary,
+} from '@nx-temp/data';
 import { Store } from '@ngrx/store';
+import { Router } from '@angular/router';
 import { debounceTime } from 'rxjs';
+import { ApiService } from '../../core/services/api.service';
 import { selectUser } from '../../core/store/auth/auth.reducer';
 import { TasksActions } from '../../core/store/tasks/tasks.actions';
 import { selectItems, selectTaskQuery, selectTasksError } from '../../core/store/tasks/tasks.reducer';
@@ -43,7 +52,13 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-task-modal [open]="modalOpen()" [task]="activeTask()" (closed)="closeModal()" (saved)="saveTask($event)" />
+    <app-task-modal
+      [open]="modalOpen()"
+      [task]="activeTask()"
+      [users]="assignableUsers()"
+      (closed)="closeModal()"
+      (saved)="saveTask($event)"
+    />
 
     <section class="flex h-full flex-col gap-8">
       <div class="flex flex-col gap-6">
@@ -312,6 +327,9 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
                 <td class="px-6 py-4 text-on-surface-variant">{{ relativeTimestamp(task.updatedAt) }}</td>
                 <td class="px-6 py-4">
                   <div class="flex justify-end gap-2">
+                    <button class="rounded-lg border border-outline-variant px-3 py-2 text-xs font-medium text-on-surface transition hover:bg-surface-container-low" type="button" (click)="openTaskDetail(task.id)">
+                      Details
+                    </button>
                     <button class="rounded-lg border border-outline-variant px-3 py-2 text-xs font-medium text-on-surface transition hover:bg-surface-container-low" type="button" (click)="openEditModal(task)">
                       Edit
                     </button>
@@ -376,14 +394,24 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
                   {{ task.description || 'No description provided.' }}
                 </p>
 
+                <div *ngIf="task.tags.length > 0" class="mb-3 flex flex-wrap gap-1">
+                  <span *ngFor="let tag of task.tags.slice(0, 3)" class="rounded-full bg-surface-container px-2 py-0.5 text-[10px] text-on-surface-variant">#{{ tag }}</span>
+                </div>
+
                 <div *ngIf="column.status === TaskStatus.InProgress" class="mb-4 h-1.5 w-full rounded-full bg-surface-container-highest">
                   <div class="h-1.5 rounded-full bg-primary" [style.width.%]="50 + ((task.position % 4) * 10)"></div>
                 </div>
 
                 <div class="mt-auto flex items-center justify-between">
-                  <div class="flex items-center gap-1 text-xs text-outline-variant">
-                    <span class="material-symbols-outlined text-[16px]">apartment</span>
-                    <span>{{ task.organizationName }}</span>
+                  <div class="space-y-1 text-xs text-outline-variant">
+                    <div class="flex items-center gap-1">
+                      <span class="material-symbols-outlined text-[16px]">apartment</span>
+                      <span>{{ task.organizationName }}</span>
+                    </div>
+                    <div class="flex items-center gap-1" *ngIf="task.assigneeName">
+                      <span class="material-symbols-outlined text-[16px]">person</span>
+                      <span>{{ task.assigneeName }}</span>
+                    </div>
                   </div>
                   <div class="flex h-6 w-6 items-center justify-center rounded-full border-2 border-surface-container-low bg-surface-container-high text-[10px] font-semibold text-on-surface">
                     {{ task.createdByName.charAt(0) }}
@@ -391,6 +419,9 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
                 </div>
 
                 <div *ngIf="canManage()" class="mt-4 flex gap-2 border-t border-outline-variant/50 pt-3">
+                  <button class="rounded-lg border border-outline-variant px-3 py-2 text-xs font-medium text-on-surface transition hover:bg-surface-container-low" type="button" (click)="openTaskDetail(task.id)">
+                    Details
+                  </button>
                   <button class="rounded-lg border border-outline-variant px-3 py-2 text-xs font-medium text-on-surface transition hover:bg-surface-container-low" type="button" (click)="openEditModal(task)">
                     Edit
                   </button>
@@ -412,6 +443,8 @@ export class TasksPageComponent {
   private readonly store = inject(Store);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly api = inject(ApiService);
+  private readonly router = inject(Router);
   @ViewChild('searchInput') private searchInput?: ElementRef<HTMLInputElement>;
 
   readonly tasks = this.store.selectSignal(selectItems);
@@ -423,6 +456,7 @@ export class TasksPageComponent {
   readonly modalOpen = signal(false);
   readonly activeTask = signal<Task | null>(null);
   readonly viewMode = signal<TaskViewMode>('board');
+  readonly assignableUsers = signal<UserSummary[]>([]);
 
   readonly filtersForm = this.fb.nonNullable.group({
     search: [''],
@@ -453,6 +487,9 @@ export class TasksPageComponent {
 
   constructor() {
     this.store.dispatch(TasksActions.queryChanged({ query: this.currentQuery() }));
+    this.api.listUsers().pipe(takeUntilDestroyed(this.destroyRef)).subscribe((users) => {
+      this.assignableUsers.set(users);
+    });
 
     this.filtersForm.valueChanges
       .pipe(debounceTime(200), takeUntilDestroyed(this.destroyRef))
@@ -516,6 +553,9 @@ export class TasksPageComponent {
     category: TaskCategory;
     priority: TaskPriority;
     status: TaskStatus;
+    assigneeId: string | null;
+    dueDate: string | null;
+    tags: string[];
   }) {
     const task = this.activeTask();
     if (task) {
@@ -529,6 +569,10 @@ export class TasksPageComponent {
 
   deleteTask(id: string) {
     this.store.dispatch(TasksActions.deleteRequested({ id }));
+  }
+
+  openTaskDetail(id: string) {
+    void this.router.navigate(['/tasks', id]);
   }
 
   @HostListener('window:keydown', ['$event'])

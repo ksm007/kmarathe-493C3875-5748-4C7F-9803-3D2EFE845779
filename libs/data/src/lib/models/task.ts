@@ -28,6 +28,33 @@ export interface Task {
   organizationName: string;
   createdById: string;
   createdByName: string;
+  assigneeId: string | null;
+  assigneeName: string | null;
+  dueDate: string | null;
+  tags: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+export enum TaskActivityType {
+  TaskCreated = 'task_created',
+  TaskUpdated = 'task_updated',
+  StatusChanged = 'status_changed',
+  Comment = 'comment',
+}
+
+export interface TaskActivity {
+  id: string;
+  taskId: string;
+  organizationId: string;
+  actorId: string | null;
+  actorName: string | null;
+  type: TaskActivityType;
+  message: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface TaskDetail extends Task {
+  activities: TaskActivity[];
 }

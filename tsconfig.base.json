@@ -18,6 +18,9 @@
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
+      "@nx-temp/ai": [
+        "libs/ai/src/index.ts"
+      ],
       "@nx-temp/data": [
         "libs/data/src/index.ts"
       ],

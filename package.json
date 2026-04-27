@@ -9,7 +9,8 @@
     "build:dashboard": "CI=1 npx nx build dashboard",
     "test": "npx nx run-many -t test --projects=api,dashboard,auth,data",
     "db:migrate": "ts-node --project apps/api/tsconfig.app.json -r tsconfig-paths/register -r dotenv/config apps/api/src/scripts/migrate.ts",
-    "db:seed": "ts-node --project apps/api/tsconfig.app.json -r tsconfig-paths/register -r dotenv/config apps/api/src/scripts/seed.ts"
+    "db:seed": "ts-node --project apps/api/tsconfig.app.json -r tsconfig-paths/register -r dotenv/config apps/api/src/scripts/seed.ts",
+    "ai:backfill": "ts-node --project apps/api/tsconfig.app.json -r tsconfig-paths/register -r dotenv/config apps/api/src/scripts/backfill-embeddings.ts"
   },
   "private": true,
   "devDependencies": {
@@ -50,6 +51,7 @@
     "@swc/core": "~1.15.5",
     "@swc/helpers": "~0.5.18",
     "@types/bcrypt": "^6.0.0",
+    "@types/d3": "^7.4.3",
     "@types/jest": "^29.5.12",
     "@types/node": "20.19.9",
     "@types/passport-jwt": "^4.0.1",
@@ -91,6 +93,7 @@
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "d3": "^7.9.0",
     "helmet": "^8.1.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",

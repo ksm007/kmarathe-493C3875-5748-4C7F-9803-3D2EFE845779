@@ -4,7 +4,15 @@ import {
   TaskPriority,
   TaskStatus,
 } from '@nx-temp/data';
-import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateTaskDto implements CreateTaskRequest {
   @IsString()
@@ -28,4 +36,18 @@ export class CreateTaskDto implements CreateTaskRequest {
   @IsOptional()
   @IsString()
   organizationId?: string;
+
+  @IsOptional()
+  @IsString()
+  assigneeId?: string | null;
+
+  @IsOptional()
+  @IsDateString()
+  dueDate?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  tags?: string[];
 }
