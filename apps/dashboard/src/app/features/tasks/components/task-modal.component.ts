@@ -150,16 +150,13 @@ export class TaskModalComponent implements OnChanges {
       return;
     }
 
-    const value = this.form.getRawValue();
+    const { tagsText, ...rest } = this.form.getRawValue();
     this.saved.emit({
-      ...value,
-      description: value.description || null,
-      assigneeId: value.assigneeId || null,
-      dueDate: value.dueDate || null,
-      tags: value.tagsText
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter(Boolean),
+      ...rest,
+      description: rest.description || null,
+      assigneeId: rest.assigneeId || null,
+      dueDate: rest.dueDate || null,
+      tags: tagsText.split(',').map((tag) => tag.trim()).filter(Boolean),
     });
   }
 
