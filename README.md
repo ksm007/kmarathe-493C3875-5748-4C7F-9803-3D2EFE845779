@@ -1,99 +1,144 @@
-# Secure Task Management System
+# Enterprise OS — Task Management Platform
 
-An Nx monorepo implementation of the full stack assessment:
+A full-stack Nx monorepo with JWT auth, role-based access control, AI-powered task management, semantic duplicate detection, and an AI standup report generator.
 
-- `apps/api`: NestJS API with JWT auth, RBAC, audit logging, and PostgreSQL via TypeORM
-- `apps/dashboard`: Angular + Tailwind dashboard with NgRx state and drag-and-drop task management
-- `libs/data`: shared enums, contracts, and frontend/backend models
-- `libs/auth`: shared permission helpers and Nest decorators
+## Monorepo Layout
+
+| Package | Description |
+|---|---|
+| `apps/api` | NestJS REST API — auth, RBAC, tasks, AI, audit, reports |
+| `apps/dashboard` | Angular 20 + Tailwind + NgRx SPA |
+| `libs/data` | Shared enums, DTOs, and models (client + server) |
+| `libs/auth` | Permission helpers and NestJS decorators |
+| `libs/ai` | Embeddings, RAG, intent parsing, guardrails |
+
+---
 
 ## Setup
 
-Prerequisites:
-
-- Node.js 22.x recommended
-- npm 10+
-- Neon PostgreSQL database
-
-Install dependencies:
+**Prerequisites:** Node.js 22.x, npm 10+, PostgreSQL (Neon recommended)
 
 ```bash
 npm install
-```
-
-Create `.env` from `.env.example`:
-
-```bash
-cp .env.example .env
-```
-
-Run database migration and seed data:
-
-```bash
+cp .env.example .env   # fill in DATABASE_URL and JWT_SECRET
 npm run db:migrate
 npm run db:seed
 ```
 
-Run the backend:
+**Run locally:**
 
 ```bash
-npm run dev:api
+npm run dev:api        # http://localhost:4000/api
+npm run dev:dashboard  # http://localhost:4200
 ```
 
-Run the frontend:
+**Seeded accounts:**
 
-```bash
-npm run dev:dashboard
-```
+| Email | Password | Role |
+|---|---|---|
+| `owner@acme.test` | `Password123!` | Owner |
+| `admin@acme.test` | `Password123!` | Admin |
+| `viewer@acme.test` | `Password123!` | Viewer |
+| `field-admin@acme.test` | `Password123!` | Admin (child org) |
 
-The dashboard script sets `CI=1` to avoid a flaky Angular/Nx builder issue observed in this workspace.
+---
 
-Default local URLs:
+## Features
 
-- API: `http://localhost:3000/api`
-- Dashboard: `http://localhost:4200`
+### Task Board
+- Kanban board with **Board / List / Analytics** view modes
+- CDK drag-and-drop for reordering and moving tasks between columns
+- Filters: search, category, sort — all debounced and synced to NgRx store
+- Global loading bar + board overlay + disabled buttons during every mutation
+- Keyboard shortcuts: `C` create · `/` focus search · `1/2/3` switch views · `Esc` close modal
 
-Seeded accounts:
+### Semantic Duplicate Detection
+Before saving a new task the API embeds the title and description using a bag-of-words cosine similarity model and compares against every existing task in the organisation's scope.
 
-- `owner@acme.test` / `Password123!`
-- `admin@acme.test` / `Password123!`
-- `viewer@acme.test` / `Password123!`
-- `field-admin@acme.test` / `Password123!`
+- Threshold: **0.80** cosine similarity
+- Blocked creation returns `400` with the matching task list and similarity scores
+- The frontend shows a toast with the conflicting task names
+- Works without an OpenAI key (local `embedText` fallback)
+- All blocked attempts are recorded in the audit log with `reason: duplicate_detected`
 
-## Architecture Overview
+### AI Chat
+Natural-language interface grounded on the user's own task corpus.
 
-### Nx layout
+- **Intent classification**: `create_task` · `update_task` · `delete_task` · `query`
+- **Create from chat**: parses `title as X`, `description as X`, priority, due date, and tags from free text
+  - Example: *"a task with high priority and title of task as Security Update and description of task as update the security for auth"*
+- **Query**: semantic RAG retrieval — answers are grounded on retrieved tasks only, formatted as bullet lists, no task IDs exposed
+- **Pending actions**: mutations require a Confirm step before executing
+- **Streaming**: SSE-based token streaming with live typing indicator
+- **Prompt injection detection** and canary token output guardrail
+- **D3 similarity chart** in the sidebar showing match scores for the latest cited tasks
 
-- `apps/api` owns HTTP, auth, persistence, and business rules
-- `apps/dashboard` owns UI, route protection, data-fetching flows, and task interactions
-- `libs/data` prevents enum/DTO drift between client and server
-- `libs/auth` centralizes reusable permission logic and route decorators
+### AI Standup Report
+`GET /api/reports/standup` queries all tasks updated in the last 24 hours, builds a structured prompt, and returns a markdown report with:
+- Key accomplishments
+- Work in progress
+- Upcoming priorities
+- Blockers
 
-### Backend modules
+Falls back to a local template report when no OpenAI key is configured.
+The frontend renders the markdown with custom CSS (headers, styled list cards, fade-in animation) and includes a one-click copy button.
 
-- `auth`: login, JWT validation, global auth guard, permission guard
-- `organizations`: 2-level hierarchy access resolution
-- `tasks`: scoped CRUD, filtering, sorting, and reorder endpoint
-- `audit`: persistent audit log storage and restricted read access
-- `database`: TypeORM config, entities, migrations
+### Role-Based Access Control
 
-### Frontend structure
+| Role | Scope |
+|---|---|
+| `owner` | Own org + all direct child organisations |
+| `admin` | Own organisation only |
+| `viewer` | Read-only, own organisation only |
 
-- NgRx slices for `auth`, `tasks`, and `audit`
-- HTTP interceptor for bearer token attachment
-- Route guards for authenticated and admin/owner-only routes
-- Responsive task board with CDK drag-and-drop and modal create/edit flow
+Permissions: `task:read` · `task:create` · `task:update` · `task:delete` · `task:reorder` · `audit:read`
+
+### Audit Log
+Every protected action is recorded — including denied attempts and duplicate blocks — with actor, timestamp, resource, and reason. Readable by Admin/Owner only.
+
+### Team Management
+Admin/Owner can invite new members, assign roles, and remove users from their organisation scope.
+
+---
+
+## Architecture
+
+### Backend Modules
+
+| Module | Responsibility |
+|---|---|
+| `auth` | Login, JWT validation, global guard, permission guard |
+| `tasks` | Scoped CRUD, filters, reorder, duplicate detection |
+| `ai` | Embedding sync, RAG retrieval, intent execution, chat history |
+| `chat` | SSE streaming, pending action lifecycle |
+| `reports` | Standup report generation |
+| `users` | Team member management |
+| `audit` | Persistent audit log write + restricted read |
+| `organizations` | 2-level hierarchy access resolution |
+| `database` | TypeORM config, entities, migrations |
+
+### Frontend Structure
+
+- **NgRx slices**: `auth`, `tasks`, `audit`
+- **HTTP interceptor**: bearer token attachment
+- **Route guards**: `authGuard`, `adminGuard`
+- **`ApiService`**: typed wrappers for every endpoint including SSE streaming
+- **`TaskModalComponent`**: create / edit with reactive form
+- **`AiChatPageComponent`**: streaming chat, D3 chart, formatted message renderer
+- **`StandupReportPageComponent`**: markdown-to-HTML renderer with styled output
+
+### AI Library (`libs/ai`)
+
+| Module | Purpose |
+|---|---|
+| `embeddings` | 64-dim bag-of-words `embedText` + `cosineSimilarity` |
+| `rag` | `buildTaskDocument`, `buildGroundedAnswerPrompt` |
+| `intents` | `classifyIntent`, `parseIntent` — title/description/priority/tag extraction |
+| `guardrails` | Prompt injection detection, canary token leak detection |
+
+---
 
 ## Data Model
-
-Entities:
-
-- `Organization`: self-referencing parent/child hierarchy with max intended depth of 2
-- `User`: belongs to one organization and has one role
-- `Task`: belongs to one organization and one creator, includes board `status` and `position`
-- `AuditLog`: records protected actions, allow/deny result, actor metadata, and reason
-
-Mermaid ERD:
 
 ```mermaid
 erDiagram
@@ -102,6 +147,9 @@ erDiagram
   ORGANIZATION ||--o{ TASK : owns
   USER ||--o{ TASK : creates
   USER ||--o{ AUDIT_LOG : performs
+  TASK ||--o| TASK_EMBEDDING : has
+  TASK ||--o{ TASK_ACTIVITY : has
+  USER ||--o{ LLM_INTERACTION : triggers
 
   ORGANIZATION {
     string id
@@ -122,12 +170,32 @@ erDiagram
   TASK {
     string id
     string title
+    string description
     string status
     string category
     string priority
     int position
+    string[] tags
+    string dueDate
     string organizationId
     string createdById
+    string assigneeId
+  }
+
+  TASK_EMBEDDING {
+    string taskId
+    string organizationId
+    number[] embedding
+    string document
+    datetime syncedAt
+  }
+
+  TASK_ACTIVITY {
+    string taskId
+    string actorId
+    string type
+    string message
+    json metadata
   }
 
   AUDIT_LOG {
@@ -137,154 +205,137 @@ erDiagram
     string resource
     boolean allowed
     string reason
+    json metadata
+  }
+
+  LLM_INTERACTION {
+    string userId
+    string operation
+    string provider
+    string model
+    boolean canaryTriggered
+    string blockedReason
   }
 ```
 
-## Access Control
+---
 
-Roles:
+## API Reference
 
-- `owner`: full task access for its organization plus direct child organizations
-- `admin`: full task access only within its own organization
-- `viewer`: read-only task access only within its own organization
+### Auth
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/auth/login` | Returns JWT + user profile |
+| `POST` | `/api/auth/register` | Creates account + returns JWT |
+| `GET` | `/api/auth/me` | Current user from JWT |
 
-Permissions:
+### Tasks
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/tasks` | List tasks (scoped, filterable) |
+| `POST` | `/api/tasks` | Create task — runs duplicate check first |
+| `GET` | `/api/tasks/:id` | Task detail with activity log |
+| `PUT` | `/api/tasks/:id` | Partial update |
+| `DELETE` | `/api/tasks/:id` | Delete |
+| `PATCH` | `/api/tasks/reorder` | Persist drag-and-drop order + status |
 
-- `task:read`
-- `task:create`
-- `task:update`
-- `task:delete`
-- `task:reorder`
-- `audit:read`
-
-Implementation notes:
-
-- JWT auth is enforced globally; `POST /auth/login` is explicitly public
-- Permission checks use `@RequirePermissions(...)` from `libs/auth`
-- Organization scope is enforced inside task service methods before mutation or filtered reads
-- Audit log reads are limited to Owner/Admin roles
-- All protected task operations record audit rows, including denied scope checks inside the task service
-
-## API Documentation
-
-### `POST /api/auth/login`
-
-Request:
-
+**Duplicate detection response (400):**
 ```json
 {
-  "email": "owner@acme.test",
-  "password": "Password123!"
-}
-```
-
-Response:
-
-```json
-{
-  "accessToken": "jwt-token",
-  "user": {
-    "id": "uuid",
-    "email": "owner@acme.test",
-    "fullName": "Olivia Owner",
-    "role": "owner",
-    "organizationId": "uuid",
-    "organizationName": "Acme HQ"
-  }
-}
-```
-
-### `GET /api/auth/me`
-
-Returns the authenticated user profile resolved from the JWT.
-
-### `GET /api/tasks`
-
-Supported query params:
-
-- `status`
-- `category`
-- `search`
-- `sortBy`
-- `order`
-- `organizationId`
-
-Example:
-
-```bash
-curl -H "Authorization: Bearer <token>" \
-  "http://localhost:3000/api/tasks?status=todo&search=security"
-```
-
-### `POST /api/tasks`
-
-Example request:
-
-```json
-{
-  "title": "Review quarterly security checklist",
-  "description": "Validate RBAC and vendor access.",
-  "category": "ops",
-  "priority": "high",
-  "status": "todo"
-}
-```
-
-### `PUT /api/tasks/:id`
-
-Partial update for title, description, category, priority, and status.
-
-### `DELETE /api/tasks/:id`
-
-Deletes the task if the caller is allowed to mutate that organization scope.
-
-### `PATCH /api/tasks/reorder`
-
-Persists board ordering and status changes from drag-and-drop.
-
-Request:
-
-```json
-{
-  "tasks": [
-    { "id": "task-1", "status": "in_progress", "position": 0 },
-    { "id": "task-2", "status": "in_progress", "position": 1 }
+  "message": "Potential duplicate tasks detected",
+  "duplicates": [
+    { "id": "uuid", "title": "Fix login bug", "similarity": 0.847 }
   ]
 }
 ```
 
-### `GET /api/audit-log`
+### AI Chat
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/chat/ask` | SSE stream — returns chunks then full message |
+| `GET` | `/api/chat/history` | Conversation history |
+| `POST` | `/api/chat/pending-actions/:id/confirm` | Execute a pending mutation |
+| `POST` | `/api/chat/pending-actions/:id/cancel` | Dismiss a pending mutation |
 
-Owner/Admin only.
+### Reports
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/reports/standup` | AI standup report for last 24h |
 
-```bash
-curl -H "Authorization: Bearer <token>" \
-  "http://localhost:3000/api/audit-log?limit=100"
-```
+### Users
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/users` | List users in scope |
+| `POST` | `/api/users` | Invite team member (Admin+) |
+| `DELETE` | `/api/users/:id` | Remove member (Admin+) |
+
+### Audit
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/audit-log` | Paginated audit log (Admin/Owner) |
+
+---
 
 ## Testing
 
-Run all configured tests:
-
 ```bash
-npm test
+npm test                          # all projects
+npx nx test api                   # API unit tests
+npx nx test auth                  # auth lib tests
 ```
 
-Implemented test coverage includes:
+Test coverage includes:
+- Permission and org scope helpers (`libs/auth`)
+- Duplicate detection math and threshold validation (`tasks-dedup.spec.ts`)
+- Intent parsing — title/description/priority extraction from free text (`intents.spec.ts`)
+- Organisation scope resolution (`organizations.service.spec.ts`)
+- Frontend auth reducer (`auth.reducer.spec.ts`)
 
-- shared permission and scope helpers
-- organization scope resolution rules
-- frontend auth reducer session behavior
+---
 
-## Future Considerations
+## Production Deployment
 
-- refresh tokens and rotation for longer-lived sessions
-- CSRF protection if the auth transport moves to cookies
-- permission caching for large org graphs
-- richer audit capture around global guard denials
-- organization management UI and delegated role administration
-- stronger frontend build hardening once the environment is pinned to a supported Angular Node runtime
+**Build:**
+```bash
+npx nx build api --configuration=production
+npx nx build dashboard --configuration=production
+```
 
-## Notes
+**Start API with PM2:**
+```bash
+pm2 start ecosystem.config.js --env production
+pm2 save && pm2 startup
+```
 
-- This workspace was implemented against a Node `23.x` environment. Angular 20 officially targets Node `20.19+`, `22.12+`, or `24+`. The dashboard source passes TypeScript and Angular compilation checks, but the full Angular application builder is unstable in this unsupported runtime. Using Node 22 is the intended path.
+**Required env vars:**
+```
+DATABASE_URL=postgresql://...
+JWT_SECRET=...
+CORS_ORIGIN=https://your-domain.com
+PORT=4000
+
+# Optional — AI features fall back to local models without these
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini
+EMBEDDING_MODEL=text-embedding-3-small
+```
+
+**Nginx — serve dashboard SPA + proxy API:**
+```nginx
+location /turbo-vets/ {
+    alias /path/to/dist/apps/dashboard/browser/;
+    index index.html;
+    try_files $uri $uri/ /turbo-vets/index.html;
+}
+
+location /api/ {
+    proxy_pass http://127.0.0.1:4000;
+    proxy_buffering off;   # required for SSE streaming
+    proxy_cache off;
+    proxy_read_timeout 300s;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Live: **https://srv1180359.hstgr.cloud/turbo-vets/**
