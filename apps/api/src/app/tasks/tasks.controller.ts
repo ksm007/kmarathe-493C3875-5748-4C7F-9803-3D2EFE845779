@@ -1,6 +1,7 @@
 import { CurrentUser, RequirePermissions } from '@nx-temp/auth';
 import { Permission } from '@nx-temp/data';
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { AddTaskCommentDto } from './dto/add-task-comment.dto';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { ReorderTasksDto } from './dto/reorder-tasks.dto';
 import { TaskQueryDto } from './dto/task-query.dto';
@@ -15,6 +16,12 @@ export class TasksController {
   @RequirePermissions(Permission.TaskRead)
   list(@CurrentUser() user: never, @Query() query: TaskQueryDto) {
     return this.tasksService.listTasks(user, query);
+  }
+
+  @Get(':id')
+  @RequirePermissions(Permission.TaskRead)
+  detail(@CurrentUser() user: never, @Param('id') id: string) {
+    return this.tasksService.getTaskDetail(user, id);
   }
 
   @Post()
@@ -40,5 +47,11 @@ export class TasksController {
   @RequirePermissions(Permission.TaskReorder)
   reorder(@CurrentUser() user: never, @Body() body: ReorderTasksDto) {
     return this.tasksService.reorderTasks(user, body);
+  }
+
+  @Post(':id/comments')
+  @RequirePermissions(Permission.TaskUpdate)
+  addComment(@CurrentUser() user: never, @Param('id') id: string, @Body() body: AddTaskCommentDto) {
+    return this.tasksService.addComment(user, id, body);
   }
 }

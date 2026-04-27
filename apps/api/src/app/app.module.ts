@@ -1,4 +1,6 @@
+import { AiModule } from './ai/ai.module';
 import { Module } from '@nestjs/common';
+import { ChatModule } from './chat/chat.module';
 import { ConfigModule } from '@nestjs/config';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
@@ -15,11 +17,13 @@ import { UsersModule } from './users/users.module';
       validate: validateEnv,
     }),
     DatabaseModule,
+    AiModule,
     UsersModule,
     OrganizationsModule,
     AuditModule,
     AuthModule,
     TasksModule,
+    ChatModule,
   ],
 })
 export class AppModule {}

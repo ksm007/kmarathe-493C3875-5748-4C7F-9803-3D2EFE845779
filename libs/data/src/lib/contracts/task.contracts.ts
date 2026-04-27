@@ -16,6 +16,9 @@ export interface CreateTaskRequest {
   priority: TaskPriority;
   status?: TaskStatus;
   organizationId?: string;
+  assigneeId?: string | null;
+  dueDate?: string | null;
+  tags?: string[];
 }
 
 export interface UpdateTaskRequest {
@@ -24,6 +27,9 @@ export interface UpdateTaskRequest {
   category?: TaskCategory;
   priority?: TaskPriority;
   status?: TaskStatus;
+  assigneeId?: string | null;
+  dueDate?: string | null;
+  tags?: string[];
 }
 
 export interface ReorderTaskItem {
@@ -34,4 +40,8 @@ export interface ReorderTaskItem {
 
 export interface ReorderTasksRequest {
   tasks: ReorderTaskItem[];
+}
+
+export interface AddTaskCommentRequest {
+  message: string;
 }

@@ -1,9 +1,12 @@
 import {
-  CreateTaskRequest,
+  AddTaskCommentRequest,
   Permission,
-  ReorderTasksRequest,
   Role,
   Task,
+  TaskActivity,
+  TaskActivityType,
+  TaskCategory,
+  TaskDetail,
   TaskPriority,
   TaskQuery,
   TaskStatus,
@@ -14,30 +17,42 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { AiService } from '../ai/ai.service';
 import { AuditService } from '../audit/audit.service';
-import { OrganizationEntity, TaskEntity } from '../database/entities';
+import {
+  OrganizationEntity,
+  TaskActivityEntity,
+  TaskEntity,
+  UserEntity,
+} from '../database/entities';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { CreateTaskDto } from './dto/create-task.dto';
 
 @Injectable()
 export class TasksService {
+  private readonly logger = new Logger(TasksService.name);
+
   constructor(
     @InjectRepository(TaskEntity)
     private readonly tasksRepository: Repository<TaskEntity>,
     @InjectRepository(OrganizationEntity)
     private readonly organizationsRepository: Repository<OrganizationEntity>,
+    @InjectRepository(UserEntity)
+    private readonly usersRepository: Repository<UserEntity>,
+    @InjectRepository(TaskActivityEntity)
+    private readonly taskActivitiesRepository: Repository<TaskActivityEntity>,
     private readonly organizationsService: OrganizationsService,
-    private readonly auditService: AuditService
+    private readonly auditService: AuditService,
+    private readonly aiService: AiService
   ) {}
 
   async listTasks(user: AuthenticatedUser, query: TaskQuery): Promise<Task[]> {
-    const accessibleOrganizationIds = await this.organizationsService.getAccessibleOrganizationIds(
-      user.role,
-      user.organizationId
-    );
+    const accessibleOrganizationIds = await this.getAccessibleOrganizationIds(user);
 
     if (
       query.organizationId &&
@@ -63,16 +78,23 @@ export class TasksService {
       .createQueryBuilder('task')
       .leftJoinAndSelect('task.organization', 'organization')
       .leftJoinAndSelect('task.createdBy', 'createdBy')
+      .leftJoinAndSelect('task.assignee', 'assignee')
       .where('task.organizationId IN (:...organizationIds)', {
         organizationIds: query.organizationId ? [query.organizationId] : accessibleOrganizationIds,
       });
+
+    if (user.role === Role.Viewer) {
+      qb.andWhere('(task.createdById = :userId OR task.assigneeId = :userId)', {
+        userId: user.id,
+      });
+    }
 
     if (query.status) {
       qb.andWhere('task.status = :status', { status: query.status });
     }
 
     if (query.category) {
-      qb.andWhere('task.category = :category', { category: query.category });
+      qb.andWhere('task.category = :category', { status: query.category, category: query.category });
     }
 
     if (query.search) {
@@ -97,8 +119,33 @@ export class TasksService {
     return tasks.map((task) => this.toTask(task));
   }
 
-  async createTask(user: AuthenticatedUser, payload: CreateTaskRequest): Promise<Task> {
+  async getTaskDetail(user: AuthenticatedUser, taskId: string): Promise<TaskDetail> {
+    const task = await this.loadTaskWithRelations(taskId);
+    const accessibleOrganizationIds = await this.getAccessibleOrganizationIds(user);
+
+    if (!task || !this.canReadTask(user, task, accessibleOrganizationIds)) {
+      throw new NotFoundException('Task not found');
+    }
+
+    const activities = await this.taskActivitiesRepository.find({
+      where: { taskId },
+      relations: { actor: true },
+      order: { createdAt: 'ASC' },
+    });
+
+    return {
+      ...this.toTask(task),
+      activities: activities.map((activity) => this.toTaskActivity(activity)),
+    };
+  }
+
+  async createTask(user: AuthenticatedUser, payload: CreateTaskDto): Promise<Task> {
     const organizationId = await this.resolveOrganizationId(user, payload.organizationId);
+    const assigneeId = await this.resolveAssigneeId(
+      user,
+      organizationId,
+      payload.assigneeId ?? null
+    );
     const position = await this.tasksRepository.count({
       where: {
         organizationId,
@@ -114,14 +161,21 @@ export class TasksService {
       status: payload.status ?? TaskStatus.Todo,
       organizationId,
       createdById: user.id,
+      assigneeId,
+      dueDate: payload.dueDate ?? null,
+      tags: this.normalizeTags(payload.tags),
       position,
     });
 
     const savedTask = await this.tasksRepository.save(task);
-    const hydratedTask = await this.tasksRepository.findOneOrFail({
-      where: { id: savedTask.id },
-      relations: { organization: true, createdBy: true },
+    await this.recordActivity(savedTask, user, TaskActivityType.TaskCreated, `Task created: ${task.title}`, {
+      status: savedTask.status,
     });
+
+    const hydratedTask = await this.loadTaskWithRelations(savedTask.id);
+    if (!hydratedTask) {
+      throw new NotFoundException('Task not found after save');
+    }
 
     await this.auditService.log({
       actor: user,
@@ -132,6 +186,8 @@ export class TasksService {
       allowed: true,
     });
 
+    await this.syncTaskEmbedding(savedTask.id);
+
     return this.toTask(hydratedTask);
   }
 
@@ -141,12 +197,69 @@ export class TasksService {
     payload: UpdateTaskRequest
   ): Promise<Task> {
     const task = await this.getTaskForMutation(user, taskId, 'tasks.update');
-    Object.assign(task, payload);
+    const previousStatus = task.status;
+
+    if (payload.title !== undefined) {
+      task.title = payload.title;
+    }
+
+    if (payload.description !== undefined) {
+      task.description = payload.description;
+    }
+
+    if (payload.category !== undefined) {
+      task.category = payload.category;
+    }
+
+    if (payload.priority !== undefined) {
+      task.priority = payload.priority;
+    }
+
+    if (payload.status !== undefined) {
+      task.status = payload.status;
+    }
+
+    if (payload.assigneeId !== undefined) {
+      task.assigneeId = await this.resolveAssigneeId(user, task.organizationId, payload.assigneeId);
+    }
+
+    if (payload.dueDate !== undefined) {
+      task.dueDate = payload.dueDate;
+    }
+
+    if (payload.tags !== undefined) {
+      task.tags = this.normalizeTags(payload.tags);
+    }
+
     await this.tasksRepository.save(task);
-    const hydratedTask = await this.tasksRepository.findOneOrFail({
-      where: { id: task.id },
-      relations: { organization: true, createdBy: true },
-    });
+    await this.recordActivity(
+      task,
+      user,
+      TaskActivityType.TaskUpdated,
+      `Task updated: ${task.title}`,
+      {
+        status: task.status,
+        priority: task.priority,
+      }
+    );
+
+    if (previousStatus !== task.status) {
+      await this.recordActivity(
+        task,
+        user,
+        TaskActivityType.StatusChanged,
+        `Status changed from ${previousStatus} to ${task.status}`,
+        {
+          from: previousStatus,
+          to: task.status,
+        }
+      );
+    }
+
+    const hydratedTask = await this.loadTaskWithRelations(task.id);
+    if (!hydratedTask) {
+      throw new NotFoundException('Task not found after update');
+    }
 
     await this.auditService.log({
       actor: user,
@@ -156,12 +269,15 @@ export class TasksService {
       allowed: true,
     });
 
+    await this.syncTaskEmbedding(task.id);
+
     return this.toTask(hydratedTask);
   }
 
   async deleteTask(user: AuthenticatedUser, taskId: string): Promise<void> {
     const task = await this.getTaskForMutation(user, taskId, 'tasks.delete');
     await this.tasksRepository.remove(task);
+    await this.aiService.removeTaskEmbedding(taskId);
 
     await this.auditService.log({
       actor: user,
@@ -172,7 +288,7 @@ export class TasksService {
     });
   }
 
-  async reorderTasks(user: AuthenticatedUser, payload: ReorderTasksRequest): Promise<Task[]> {
+  async reorderTasks(user: AuthenticatedUser, payload: { tasks: Array<{ id: string; status: TaskStatus; position: number }> }): Promise<Task[]> {
     if (payload.tasks.length === 0) {
       throw new BadRequestException('At least one task is required');
     }
@@ -180,27 +296,17 @@ export class TasksService {
     const ids = payload.tasks.map((task) => task.id);
     const tasks = await this.tasksRepository.find({
       where: { id: In(ids) },
-      relations: { organization: true, createdBy: true },
+      relations: { organization: true, createdBy: true, assignee: true },
     });
 
     if (tasks.length !== ids.length) {
       throw new NotFoundException('One or more tasks were not found');
     }
 
-    const accessibleOrganizationIds = await this.organizationsService.getAccessibleOrganizationIds(
-      user.role,
-      user.organizationId
-    );
+    const accessibleOrganizationIds = await this.getAccessibleOrganizationIds(user);
 
     for (const task of tasks) {
-      if (
-        !canAccessOrganization(
-          user.role,
-          task.organizationId,
-          user.organizationId,
-          accessibleOrganizationIds
-        )
-      ) {
+      if (!this.canReadTask(user, task, accessibleOrganizationIds)) {
         await this.auditService.log({
           actor: user,
           action: 'tasks.reorder',
@@ -220,8 +326,21 @@ export class TasksService {
         continue;
       }
 
+      const previousStatus = task.status;
       task.position = item.position;
       task.status = item.status;
+      if (previousStatus !== item.status) {
+        await this.recordActivity(
+          task,
+          user,
+          TaskActivityType.StatusChanged,
+          `Status changed from ${previousStatus} to ${item.status}`,
+          {
+            from: previousStatus,
+            to: item.status,
+          }
+        );
+      }
     }
 
     await this.tasksRepository.save([...taskMap.values()]);
@@ -233,9 +352,51 @@ export class TasksService {
       metadata: { ids },
     });
 
+    await Promise.all([...taskMap.keys()].map((taskId) => this.syncTaskEmbedding(taskId)));
+
     return [...taskMap.values()]
       .sort((a, b) => a.position - b.position)
       .map((task) => this.toTask(task));
+  }
+
+  async addComment(
+    user: AuthenticatedUser,
+    taskId: string,
+    payload: AddTaskCommentRequest
+  ): Promise<TaskActivity> {
+    const task = await this.getTaskForMutation(user, taskId, 'tasks.comment');
+    const activity = await this.recordActivity(
+      task,
+      user,
+      TaskActivityType.Comment,
+      payload.message,
+      null
+    );
+
+    await this.auditService.log({
+      actor: user,
+      action: 'tasks.comment',
+      resource: 'task',
+      resourceId: taskId,
+      allowed: true,
+    });
+
+    await this.syncTaskEmbedding(taskId);
+
+    return this.toTaskActivity(activity);
+  }
+
+  async findBestTaskMatch(user: AuthenticatedUser, hint: string): Promise<Task | null> {
+    const tasks = await this.listTasks(user, {});
+    const normalizedHint = hint.toLowerCase();
+
+    return (
+      tasks.find(
+        (task) =>
+          task.id.toLowerCase() === normalizedHint ||
+          task.title.toLowerCase().includes(normalizedHint)
+      ) ?? null
+    );
   }
 
   private async resolveOrganizationId(
@@ -246,10 +407,7 @@ export class TasksService {
       return user.organizationId;
     }
 
-    const accessibleOrganizationIds = await this.organizationsService.getAccessibleOrganizationIds(
-      user.role,
-      user.organizationId
-    );
+    const accessibleOrganizationIds = await this.getAccessibleOrganizationIds(user);
 
     const allowed = canAccessOrganization(
       user.role,
@@ -273,31 +431,53 @@ export class TasksService {
     return requestedOrganizationId;
   }
 
+  private async resolveAssigneeId(
+    user: AuthenticatedUser,
+    organizationId: string,
+    requestedAssigneeId?: string | null
+  ): Promise<string | null> {
+    if (!requestedAssigneeId) {
+      return null;
+    }
+
+    const assignee = await this.usersRepository.findOne({
+      where: { id: requestedAssigneeId },
+      relations: { organization: true },
+    });
+
+    if (!assignee) {
+      throw new BadRequestException('Assignee not found');
+    }
+
+    const accessibleOrganizationIds = await this.getAccessibleOrganizationIds(user);
+    if (
+      !canAccessOrganization(
+        user.role,
+        assignee.organizationId,
+        user.organizationId,
+        accessibleOrganizationIds
+      ) ||
+      assignee.organizationId !== organizationId
+    ) {
+      throw new ForbiddenException('Assignee is outside your scope');
+    }
+
+    return assignee.id;
+  }
+
   private async getTaskForMutation(
     user: AuthenticatedUser,
     taskId: string,
     action: string
   ): Promise<TaskEntity> {
-    const task = await this.tasksRepository.findOne({
-      where: { id: taskId },
-      relations: { organization: true, createdBy: true },
-    });
+    const task = await this.loadTaskWithRelations(taskId);
 
     if (!task) {
       throw new NotFoundException('Task not found');
     }
 
-    const accessibleOrganizationIds = await this.organizationsService.getAccessibleOrganizationIds(
-      user.role,
-      user.organizationId
-    );
-
-    const allowed = canAccessOrganization(
-      user.role,
-      task.organizationId,
-      user.organizationId,
-      accessibleOrganizationIds
-    );
+    const accessibleOrganizationIds = await this.getAccessibleOrganizationIds(user);
+    const allowed = this.canReadTask(user, task, accessibleOrganizationIds);
 
     if (!allowed) {
       await this.auditService.log({
@@ -326,6 +506,77 @@ export class TasksService {
     return task;
   }
 
+  private canReadTask(
+    user: AuthenticatedUser,
+    task: TaskEntity,
+    accessibleOrganizationIds: string[]
+  ): boolean {
+    const organizationAllowed = canAccessOrganization(
+      user.role,
+      task.organizationId,
+      user.organizationId,
+      accessibleOrganizationIds
+    );
+
+    if (!organizationAllowed) {
+      return false;
+    }
+
+    if (user.role === Role.Viewer) {
+      return task.createdById === user.id || task.assigneeId === user.id;
+    }
+
+    return true;
+  }
+
+  private async loadTaskWithRelations(taskId: string): Promise<TaskEntity | null> {
+    return this.tasksRepository.findOne({
+      where: { id: taskId },
+      relations: { organization: true, createdBy: true, assignee: true },
+    });
+  }
+
+  private async getAccessibleOrganizationIds(user: AuthenticatedUser): Promise<string[]> {
+    return this.organizationsService.getAccessibleOrganizationIds(user.role, user.organizationId);
+  }
+
+  private normalizeTags(tags?: string[]): string[] {
+    return Array.from(
+      new Set(
+        (tags ?? [])
+          .map((tag) => tag.trim().toLowerCase())
+          .filter(Boolean)
+      )
+    );
+  }
+
+  private async recordActivity(
+    task: TaskEntity,
+    actor: AuthenticatedUser,
+    type: TaskActivityType,
+    message: string,
+    metadata: Record<string, unknown> | null
+  ): Promise<TaskActivityEntity> {
+    const activity = this.taskActivitiesRepository.create({
+      taskId: task.id,
+      organizationId: task.organizationId,
+      actorId: actor.id,
+      type,
+      message,
+      metadata,
+    });
+
+    return this.taskActivitiesRepository.save(activity);
+  }
+
+  private async syncTaskEmbedding(taskId: string) {
+    try {
+      await this.aiService.syncTaskEmbedding(taskId);
+    } catch (error) {
+      this.logger.warn(`Failed to sync task embedding for ${taskId}: ${String(error)}`);
+    }
+  }
+
   private toTask(task: TaskEntity): Task {
     return {
       id: task.id,
@@ -339,8 +590,26 @@ export class TasksService {
       organizationName: task.organization?.name ?? '',
       createdById: task.createdById,
       createdByName: task.createdBy?.fullName ?? '',
+      assigneeId: task.assigneeId,
+      assigneeName: task.assignee?.fullName ?? null,
+      dueDate: task.dueDate,
+      tags: task.tags ?? [],
       createdAt: task.createdAt.toISOString(),
       updatedAt: task.updatedAt.toISOString(),
+    };
+  }
+
+  private toTaskActivity(activity: TaskActivityEntity): TaskActivity {
+    return {
+      id: activity.id,
+      taskId: activity.taskId,
+      organizationId: activity.organizationId,
+      actorId: activity.actorId,
+      actorName: activity.actor?.fullName ?? null,
+      type: activity.type,
+      message: activity.message,
+      metadata: activity.metadata,
+      createdAt: activity.createdAt.toISOString(),
     };
   }
 }

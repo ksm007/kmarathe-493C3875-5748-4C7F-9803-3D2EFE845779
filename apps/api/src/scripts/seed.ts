@@ -2,7 +2,16 @@ import 'reflect-metadata';
 import * as bcrypt from 'bcrypt';
 import { TaskCategory, TaskPriority, TaskStatus, Role } from '@nx-temp/data';
 import { apiDataSource } from '../app/database/data-source';
-import { OrganizationEntity, TaskEntity, UserEntity } from '../app/database/entities';
+import {
+  ChatMessageEntity,
+  ChatPendingActionEntity,
+  LlmInteractionEntity,
+  OrganizationEntity,
+  TaskActivityEntity,
+  TaskEmbeddingEntity,
+  TaskEntity,
+  UserEntity,
+} from '../app/database/entities';
 
 async function seed() {
   await apiDataSource.initialize();
@@ -13,7 +22,12 @@ async function seed() {
 
   await apiDataSource.query(`
     TRUNCATE TABLE
+      "llm_interactions",
+      "chat_messages",
+      "chat_pending_actions",
       "audit_logs",
+      "task_embeddings",
+      "task_activities",
       "tasks",
       "users",
       "organizations"
@@ -77,6 +91,9 @@ async function seed() {
       status: TaskStatus.Todo,
       category: TaskCategory.Ops,
       priority: TaskPriority.High,
+      assigneeId: admin.id,
+      dueDate: new Date().toISOString().slice(0, 10),
+      tags: ['security', 'compliance'],
       position: 0,
       organizationId: savedParent.id,
       createdById: owner.id,
@@ -87,6 +104,9 @@ async function seed() {
       status: TaskStatus.InProgress,
       category: TaskCategory.Work,
       priority: TaskPriority.Medium,
+      assigneeId: owner.id,
+      dueDate: null,
+      tags: ['reporting', 'leadership'],
       position: 0,
       organizationId: savedParent.id,
       createdById: admin.id,
@@ -97,6 +117,9 @@ async function seed() {
       status: TaskStatus.Todo,
       category: TaskCategory.Work,
       priority: TaskPriority.High,
+      assigneeId: fieldAdmin.id,
+      dueDate: null,
+      tags: ['ops', 'field'],
       position: 0,
       organizationId: savedChild.id,
       createdById: fieldAdmin.id,
@@ -107,6 +130,9 @@ async function seed() {
       status: TaskStatus.Done,
       category: TaskCategory.Personal,
       priority: TaskPriority.Low,
+      assigneeId: viewer.id,
+      dueDate: null,
+      tags: ['growth'],
       position: 0,
       organizationId: savedParent.id,
       createdById: viewer.id,

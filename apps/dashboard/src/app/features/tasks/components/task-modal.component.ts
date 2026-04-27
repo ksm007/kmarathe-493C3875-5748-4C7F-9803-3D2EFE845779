@@ -10,7 +10,13 @@ import {
   inject,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Task, TaskCategory, TaskPriority, TaskStatus } from '@nx-temp/data';
+import {
+  Task,
+  TaskCategory,
+  TaskPriority,
+  TaskStatus,
+  UserSummary,
+} from '@nx-temp/data';
 
 @Component({
   selector: 'app-task-modal',
@@ -68,6 +74,26 @@ import { Task, TaskCategory, TaskPriority, TaskStatus } from '@nx-temp/data';
             </label>
           </div>
 
+          <div class="grid gap-md md:grid-cols-2">
+            <label class="flex flex-col gap-xs">
+              <span class="font-label-caps text-label-caps uppercase text-on-surface-variant">Assignee</span>
+              <select class="taskcore-input" formControlName="assigneeId">
+                <option value="">Unassigned</option>
+                <option *ngFor="let user of users" [value]="user.id">{{ user.fullName }} • {{ user.organizationName }}</option>
+              </select>
+            </label>
+
+            <label class="flex flex-col gap-xs">
+              <span class="font-label-caps text-label-caps uppercase text-on-surface-variant">Due Date</span>
+              <input class="taskcore-input" formControlName="dueDate" type="date" />
+            </label>
+          </div>
+
+          <label class="flex flex-col gap-xs">
+            <span class="font-label-caps text-label-caps uppercase text-on-surface-variant">Tags</span>
+            <input class="taskcore-input" formControlName="tagsText" placeholder="security, auth, sprint-12" />
+          </label>
+
           <div class="mt-sm flex justify-end gap-3">
             <button class="rounded-lg border border-outline-variant px-md py-sm text-body-sm text-on-surface transition hover:bg-surface-container-low" type="button" (click)="closed.emit()">Cancel</button>
             <button class="rounded-xl bg-primary px-md py-sm font-label-lg text-label-lg text-on-primary transition-colors hover:bg-surface-tint" type="submit">
@@ -84,12 +110,16 @@ export class TaskModalComponent implements OnChanges {
 
   @Input() open = false;
   @Input() task: Task | null = null;
+  @Input() users: UserSummary[] = [];
   @Output() saved = new EventEmitter<{
     title: string;
     description: string | null;
     category: TaskCategory;
     priority: TaskPriority;
     status: TaskStatus;
+    assigneeId: string | null;
+    dueDate: string | null;
+    tags: string[];
   }>();
   @Output() closed = new EventEmitter<void>();
 
@@ -103,6 +133,9 @@ export class TaskModalComponent implements OnChanges {
     category: [TaskCategory.Work],
     priority: [TaskPriority.Medium],
     status: [TaskStatus.Todo],
+    assigneeId: [''],
+    dueDate: [''],
+    tagsText: [''],
   });
 
   ngOnChanges(changes: SimpleChanges) {
@@ -121,6 +154,12 @@ export class TaskModalComponent implements OnChanges {
     this.saved.emit({
       ...value,
       description: value.description || null,
+      assigneeId: value.assigneeId || null,
+      dueDate: value.dueDate || null,
+      tags: value.tagsText
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean),
     });
   }
 
@@ -132,6 +171,9 @@ export class TaskModalComponent implements OnChanges {
         category: this.task.category,
         priority: this.task.priority,
         status: this.task.status,
+        assigneeId: this.task.assigneeId ?? '',
+        dueDate: this.task.dueDate ?? '',
+        tagsText: this.task.tags.join(', '),
       });
       return;
     }
@@ -142,6 +184,9 @@ export class TaskModalComponent implements OnChanges {
       category: TaskCategory.Work,
       priority: TaskPriority.Medium,
       status: TaskStatus.Todo,
+      assigneeId: '',
+      dueDate: '',
+      tagsText: '',
     });
   }
 }

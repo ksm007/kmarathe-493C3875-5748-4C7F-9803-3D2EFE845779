@@ -1,14 +1,21 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AiModule } from '../ai/ai.module';
 import { AuditModule } from '../audit/audit.module';
-import { OrganizationEntity, TaskEntity } from '../database/entities';
+import {
+  OrganizationEntity,
+  TaskActivityEntity,
+  TaskEntity,
+  UserEntity,
+} from '../database/entities';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([TaskEntity, OrganizationEntity]),
+    TypeOrmModule.forFeature([TaskEntity, OrganizationEntity, UserEntity, TaskActivityEntity]),
+    AiModule,
     OrganizationsModule,
     AuditModule,
   ],
