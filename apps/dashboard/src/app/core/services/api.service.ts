@@ -68,7 +68,9 @@ export class ApiService {
   }
 
   addTaskComment(id: string, message: string) {
-    return this.http.post<TaskActivity>(`/api/tasks/${id}/comments`, { message });
+    return this.http.post<TaskActivity>(`/api/tasks/${id}/comments`, {
+      message,
+    });
   }
 
   reorderTasks(payload: ReorderTasksRequest) {
@@ -101,18 +103,24 @@ export class ApiService {
   }
 
   confirmPendingAction(id: string) {
-    return this.http.post<ConfirmPendingChatActionResponse>(`/api/chat/pending-actions/${id}/confirm`, {});
+    return this.http.post<ConfirmPendingChatActionResponse>(
+      `/api/chat/pending-actions/${id}/confirm`,
+      {},
+    );
   }
 
   cancelPendingAction(id: string) {
-    return this.http.post<ConfirmPendingChatActionResponse>(`/api/chat/pending-actions/${id}/cancel`, {});
+    return this.http.post<ConfirmPendingChatActionResponse>(
+      `/api/chat/pending-actions/${id}/cancel`,
+      {},
+    );
   }
 
   async streamChatAsk(
     payload: ChatAskRequest,
     handlers: {
       onEvent: (event: ChatStreamEvent) => void;
-    }
+    },
   ) {
     const token = this.authStorage.getToken();
     const response = await fetch('/api/chat/ask', {
@@ -166,5 +174,9 @@ export class ApiService {
     return this.http.get<AuditLogEntry[]>('/api/audit-log', {
       params: new HttpParams().set('limit', String(limit)),
     });
+  }
+
+  getStandupReport() {
+    return this.http.get<{ report: string }>('/api/reports/standup');
   }
 }

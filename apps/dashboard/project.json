@@ -30,6 +30,7 @@
       },
       "configurations": {
         "production": {
+          "baseHref": "/turbo-vets/",
           "optimization": {
             "scripts": true,
             "styles": true,
