@@ -10,6 +10,7 @@ module.exports = {
       env_production: {
         NODE_ENV: 'production',
         PORT: 4000,
+        CORS_ORIGIN: 'https://srv1180359.hstgr.cloud',
       },
     },
   ],
