@@ -6,9 +6,11 @@ import {
   AuditLogEntry,
   ChatMessage,
   CreateTaskRequest,
+  CreateTeamMemberRequest,
   CurrentUser,
   LoginRequest,
   LoginResponse,
+  RegisterRequest,
   TaskActivity,
   TaskDetail,
   ReorderTasksRequest,
@@ -28,6 +30,10 @@ export class ApiService {
 
   login(payload: LoginRequest) {
     return this.http.post<LoginResponse>('/api/auth/login', payload);
+  }
+
+  register(payload: RegisterRequest) {
+    return this.http.post<LoginResponse>('/api/auth/register', payload);
   }
 
   me() {
@@ -75,6 +81,14 @@ export class ApiService {
         ? new HttpParams().set('organizationId', organizationId)
         : undefined;
     return this.http.get<UserSummary[]>('/api/users', { params });
+  }
+
+  createTeamMember(payload: CreateTeamMemberRequest) {
+    return this.http.post<UserSummary>('/api/users', payload);
+  }
+
+  removeTeamMember(id: string) {
+    return this.http.delete<{ success: boolean }>(`/api/users/${id}`);
   }
 
   getChatHistory(limit = 20, before?: string) {

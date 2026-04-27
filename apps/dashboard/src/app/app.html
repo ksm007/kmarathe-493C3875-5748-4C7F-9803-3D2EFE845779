@@ -19,6 +19,10 @@
         <span class="material-symbols-outlined">auto_awesome</span>
         AI Chat
       </a>
+      <a *ngIf="canViewAudit()" routerLink="/team" routerLinkActive="enterprise-nav-link-active" class="enterprise-nav-link">
+        <span class="material-symbols-outlined">group</span>
+        Team
+      </a>
       <a *ngIf="canViewAudit()" routerLink="/audit-log" routerLinkActive="enterprise-nav-link-active" class="enterprise-nav-link">
         <span class="material-symbols-outlined">history</span>
         Audit Logs

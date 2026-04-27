@@ -33,6 +33,12 @@ export const authFeature = createFeature({
     })),
     on(AuthActions.hydrateFailure, () => ({ ...initialState, initialized: true })),
     on(AuthActions.loginRequested, (state) => ({ ...state, loading: true, error: null })),
+    on(AuthActions.registerRequested, (state) => ({ ...state, loading: true, error: null })),
+    on(AuthActions.registerFailure, (state, { error }) => ({
+      ...state,
+      loading: false,
+      error,
+    })),
     on(AuthActions.loginSuccess, (state, { token, user }) => ({
       ...state,
       initialized: true,
