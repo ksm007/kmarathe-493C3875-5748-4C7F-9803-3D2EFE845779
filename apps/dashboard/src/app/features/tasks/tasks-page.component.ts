@@ -38,6 +38,7 @@ import {
   selectItems,
   selectTaskQuery,
   selectTasksError,
+  selectTasksLoading,
 } from '../../core/store/tasks/tasks.reducer';
 import { TaskModalComponent } from './components/task-modal.component';
 
@@ -63,6 +64,16 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
       (closed)="closeModal()"
       (saved)="saveTask($event)"
     />
+
+    <!-- Loading bar -->
+    <div
+      *ngIf="loading()"
+      class="fixed left-0 top-0 z-50 h-0.5 w-full overflow-hidden bg-primary/20"
+    >
+      <div
+        class="h-full w-1/3 animate-[loading-bar_1.4s_ease-in-out_infinite] bg-primary"
+      ></div>
+    </div>
 
     <section class="flex h-full flex-col gap-8">
       <div class="flex flex-col gap-6">
@@ -110,11 +121,19 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
 
             <button
               *ngIf="canManage()"
-              class="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 font-label-lg text-label-lg text-on-primary shadow-sm transition-all hover:-translate-y-px hover:bg-surface-tint"
+              class="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 font-label-lg text-label-lg text-on-primary shadow-sm transition-all hover:-translate-y-px hover:bg-surface-tint disabled:cursor-not-allowed disabled:opacity-60"
               type="button"
+              [disabled]="loading()"
               (click)="openCreateModal()"
             >
-              <span class="material-symbols-outlined text-[18px]">add</span>
+              <span
+                *ngIf="loading(); else addIcon"
+                class="material-symbols-outlined animate-spin text-[18px]"
+                >progress_activity</span
+              >
+              <ng-template #addIcon>
+                <span class="material-symbols-outlined text-[18px]">add</span>
+              </ng-template>
               Create Task
             </button>
           </div>
@@ -465,8 +484,16 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
 
       <div
         *ngIf="viewMode() === 'list'"
-        class="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-card"
+        class="relative rounded-xl border border-outline-variant bg-surface-container-lowest shadow-card"
       >
+        <div
+          *ngIf="loading()"
+          class="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-surface/60 backdrop-blur-[2px]"
+        >
+          <span class="material-symbols-outlined animate-spin text-[40px] text-primary"
+            >progress_activity</span
+          >
+        </div>
         <div class="overflow-x-auto">
           <table class="w-full border-collapse text-left">
             <thead>
@@ -561,7 +588,9 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
       <div
         *ngIf="viewMode() === 'board'"
         cdkDropListGroup
-        class="flex-1 overflow-x-auto pb-4"
+        class="flex-1 overflow-x-auto pb-4 transition-opacity duration-200"
+        [class.pointer-events-none]="loading()"
+        [class.opacity-60]="loading()"
       >
         <div class="flex min-w-full items-start gap-gutter">
           <article
@@ -582,8 +611,9 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
               </h3>
               <button
                 *ngIf="canManage()"
-                class="text-on-surface-variant transition-colors hover:text-primary"
+                class="text-on-surface-variant transition-colors hover:text-primary disabled:opacity-40"
                 type="button"
+                [disabled]="loading()"
                 (click)="openCreateModal()"
               >
                 <span class="material-symbols-outlined">add</span>
@@ -740,6 +770,7 @@ export class TasksPageComponent {
   readonly tasks = this.store.selectSignal(selectItems);
   readonly user = this.store.selectSignal(selectUser);
   readonly error = this.store.selectSignal(selectTasksError);
+  readonly loading = this.store.selectSignal(selectTasksLoading);
   readonly currentQuery = this.store.selectSignal(selectTaskQuery);
 
   readonly categories = Object.values(TaskCategory);

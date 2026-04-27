@@ -90,6 +90,16 @@ module.exports = {
         soft: '0 8px 24px rgba(11, 28, 48, 0.08)',
         card: '0 2px 8px rgba(0, 0, 0, 0.04)',
       },
+      keyframes: {
+        'loading-bar': {
+          '0%': { transform: 'translateX(-100%)' },
+          '50%': { transform: 'translateX(150%)' },
+          '100%': { transform: 'translateX(400%)' },
+        },
+      },
+      animation: {
+        'loading-bar': 'loading-bar 1.4s ease-in-out infinite',
+      },
     },
   },
   plugins: [],

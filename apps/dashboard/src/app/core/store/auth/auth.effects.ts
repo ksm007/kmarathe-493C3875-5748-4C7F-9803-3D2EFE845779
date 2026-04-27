@@ -97,6 +97,34 @@ export class AuthEffects {
     { dispatch: false }
   );
 
+  readonly register$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(AuthActions.registerRequested),
+      switchMap(({ payload }) =>
+        this.api.register(payload).pipe(
+          map((response) =>
+            AuthActions.loginSuccess({ token: response.accessToken, user: response.user })
+          ),
+          catchError((err) => {
+            const message = err?.error?.message ?? 'Unable to create account. Please try again.';
+            return of(AuthActions.registerFailure({ error: message }));
+          })
+        )
+      )
+    )
+  );
+
+  readonly registerFailureToast$ = createEffect(
+    () =>
+      this.actions$.pipe(
+        ofType(AuthActions.registerFailure),
+        tap(({ error }) => {
+          this.toast.error('Registration failed', error);
+        })
+      ),
+    { dispatch: false }
+  );
+
   readonly loginFailureToast$ = createEffect(
     () =>
       this.actions$.pipe(

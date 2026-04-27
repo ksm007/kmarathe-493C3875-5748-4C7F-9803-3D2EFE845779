@@ -13,6 +13,7 @@ import {
   UpdateTaskRequest,
 } from '@nx-temp/data';
 import { AuthenticatedUser, canAccessOrganization } from '@nx-temp/auth';
+import { cosineSimilarity, embedText } from '@nx-temp/ai';
 import {
   BadRequestException,
   ForbiddenException,
@@ -27,6 +28,7 @@ import { AuditService } from '../audit/audit.service';
 import {
   OrganizationEntity,
   TaskActivityEntity,
+  TaskEmbeddingEntity,
   TaskEntity,
   UserEntity,
 } from '../database/entities';
@@ -46,13 +48,16 @@ export class TasksService {
     private readonly usersRepository: Repository<UserEntity>,
     @InjectRepository(TaskActivityEntity)
     private readonly taskActivitiesRepository: Repository<TaskActivityEntity>,
+    @InjectRepository(TaskEmbeddingEntity)
+    private readonly taskEmbeddingsRepository: Repository<TaskEmbeddingEntity>,
     private readonly organizationsService: OrganizationsService,
     private readonly auditService: AuditService,
-    private readonly aiService: AiService
+    private readonly aiService: AiService,
   ) {}
 
   async listTasks(user: AuthenticatedUser, query: TaskQuery): Promise<Task[]> {
-    const accessibleOrganizationIds = await this.getAccessibleOrganizationIds(user);
+    const accessibleOrganizationIds =
+      await this.getAccessibleOrganizationIds(user);
 
     if (
       query.organizationId &&
@@ -60,7 +65,7 @@ export class TasksService {
         user.role,
         query.organizationId,
         user.organizationId,
-        accessibleOrganizationIds
+        accessibleOrganizationIds,
       )
     ) {
       await this.auditService.log({
@@ -80,7 +85,9 @@ export class TasksService {
       .leftJoinAndSelect('task.createdBy', 'createdBy')
       .leftJoinAndSelect('task.assignee', 'assignee')
       .where('task.organizationId IN (:...organizationIds)', {
-        organizationIds: query.organizationId ? [query.organizationId] : accessibleOrganizationIds,
+        organizationIds: query.organizationId
+          ? [query.organizationId]
+          : accessibleOrganizationIds,
       });
 
     if (user.role === Role.Viewer) {
@@ -94,17 +101,26 @@ export class TasksService {
     }
 
     if (query.category) {
-      qb.andWhere('task.category = :category', { status: query.category, category: query.category });
-    }
-
-    if (query.search) {
-      qb.andWhere('(task.title ILIKE :search OR task.description ILIKE :search)', {
-        search: `%${query.search}%`,
+      qb.andWhere('task.category = :category', {
+        status: query.category,
+        category: query.category,
       });
     }
 
+    if (query.search) {
+      qb.andWhere(
+        '(task.title ILIKE :search OR task.description ILIKE :search)',
+        {
+          search: `%${query.search}%`,
+        },
+      );
+    }
+
     const sortColumn = query.sortBy ? `task.${query.sortBy}` : 'task.position';
-    qb.orderBy(sortColumn, query.order?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC');
+    qb.orderBy(
+      sortColumn,
+      query.order?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC',
+    );
 
     const tasks = await qb.getMany();
 
@@ -119,9 +135,13 @@ export class TasksService {
     return tasks.map((task) => this.toTask(task));
   }
 
-  async getTaskDetail(user: AuthenticatedUser, taskId: string): Promise<TaskDetail> {
+  async getTaskDetail(
+    user: AuthenticatedUser,
+    taskId: string,
+  ): Promise<TaskDetail> {
     const task = await this.loadTaskWithRelations(taskId);
-    const accessibleOrganizationIds = await this.getAccessibleOrganizationIds(user);
+    const accessibleOrganizationIds =
+      await this.getAccessibleOrganizationIds(user);
 
     if (!task || !this.canReadTask(user, task, accessibleOrganizationIds)) {
       throw new NotFoundException('Task not found');
@@ -139,12 +159,51 @@ export class TasksService {
     };
   }
 
-  async createTask(user: AuthenticatedUser, payload: CreateTaskDto): Promise<Task> {
-    const organizationId = await this.resolveOrganizationId(user, payload.organizationId);
+  async createTask(
+    user: AuthenticatedUser,
+    payload: CreateTaskDto,
+  ): Promise<Task> {
+    const organizationId = await this.resolveOrganizationId(
+      user,
+      payload.organizationId,
+    );
+
+    // Check for duplicate tasks using semantic similarity
+    this.logger.debug(`Checking for duplicates: "${payload.title}"`);
+    const duplicates = await this.findDuplicateTasks(
+      user,
+      payload.title,
+      payload.description ?? '',
+    );
+    this.logger.debug(`Found ${duplicates.length} potential duplicates`);
+
+    if (duplicates.length > 0) {
+      this.logger.log(`Duplicate detected for task: "${payload.title}"`);
+      await this.auditService.log({
+        actor: user,
+        action: 'tasks.create',
+        resource: 'task',
+        allowed: false,
+        reason: 'duplicate_detected',
+        organizationId,
+        metadata: { duplicateCount: duplicates.length },
+      });
+
+      throw new BadRequestException({
+        message: 'Potential duplicate tasks detected',
+        duplicates: duplicates.map((d) => ({
+          id: d.id,
+          title: d.title,
+          description: d.description,
+          similarity: d.similarity,
+        })),
+      });
+    }
+
     const assigneeId = await this.resolveAssigneeId(
       user,
       organizationId,
-      payload.assigneeId ?? null
+      payload.assigneeId ?? null,
     );
     const position = await this.tasksRepository.count({
       where: {
@@ -168,9 +227,15 @@ export class TasksService {
     });
 
     const savedTask = await this.tasksRepository.save(task);
-    await this.recordActivity(savedTask, user, TaskActivityType.TaskCreated, `Task created: ${task.title}`, {
-      status: savedTask.status,
-    });
+    await this.recordActivity(
+      savedTask,
+      user,
+      TaskActivityType.TaskCreated,
+      `Task created: ${task.title}`,
+      {
+        status: savedTask.status,
+      },
+    );
 
     const hydratedTask = await this.loadTaskWithRelations(savedTask.id);
     if (!hydratedTask) {
@@ -194,7 +259,7 @@ export class TasksService {
   async updateTask(
     user: AuthenticatedUser,
     taskId: string,
-    payload: UpdateTaskRequest
+    payload: UpdateTaskRequest,
   ): Promise<Task> {
     const task = await this.getTaskForMutation(user, taskId, 'tasks.update');
     const previousStatus = task.status;
@@ -220,7 +285,11 @@ export class TasksService {
     }
 
     if (payload.assigneeId !== undefined) {
-      task.assigneeId = await this.resolveAssigneeId(user, task.organizationId, payload.assigneeId);
+      task.assigneeId = await this.resolveAssigneeId(
+        user,
+        task.organizationId,
+        payload.assigneeId,
+      );
     }
 
     if (payload.dueDate !== undefined) {
@@ -240,7 +309,7 @@ export class TasksService {
       {
         status: task.status,
         priority: task.priority,
-      }
+      },
     );
 
     if (previousStatus !== task.status) {
@@ -252,7 +321,7 @@ export class TasksService {
         {
           from: previousStatus,
           to: task.status,
-        }
+        },
       );
     }
 
@@ -288,7 +357,12 @@ export class TasksService {
     });
   }
 
-  async reorderTasks(user: AuthenticatedUser, payload: { tasks: Array<{ id: string; status: TaskStatus; position: number }> }): Promise<Task[]> {
+  async reorderTasks(
+    user: AuthenticatedUser,
+    payload: {
+      tasks: Array<{ id: string; status: TaskStatus; position: number }>;
+    },
+  ): Promise<Task[]> {
     if (payload.tasks.length === 0) {
       throw new BadRequestException('At least one task is required');
     }
@@ -303,7 +377,8 @@ export class TasksService {
       throw new NotFoundException('One or more tasks were not found');
     }
 
-    const accessibleOrganizationIds = await this.getAccessibleOrganizationIds(user);
+    const accessibleOrganizationIds =
+      await this.getAccessibleOrganizationIds(user);
 
     for (const task of tasks) {
       if (!this.canReadTask(user, task, accessibleOrganizationIds)) {
@@ -338,7 +413,7 @@ export class TasksService {
           {
             from: previousStatus,
             to: item.status,
-          }
+          },
         );
       }
     }
@@ -352,7 +427,9 @@ export class TasksService {
       metadata: { ids },
     });
 
-    await Promise.all([...taskMap.keys()].map((taskId) => this.syncTaskEmbedding(taskId)));
+    await Promise.all(
+      [...taskMap.keys()].map((taskId) => this.syncTaskEmbedding(taskId)),
+    );
 
     return [...taskMap.values()]
       .sort((a, b) => a.position - b.position)
@@ -362,7 +439,7 @@ export class TasksService {
   async addComment(
     user: AuthenticatedUser,
     taskId: string,
-    payload: AddTaskCommentRequest
+    payload: AddTaskCommentRequest,
   ): Promise<TaskActivity> {
     const task = await this.getTaskForMutation(user, taskId, 'tasks.comment');
     const activity = await this.recordActivity(
@@ -370,7 +447,7 @@ export class TasksService {
       user,
       TaskActivityType.Comment,
       payload.message,
-      null
+      null,
     );
 
     await this.auditService.log({
@@ -386,7 +463,10 @@ export class TasksService {
     return this.toTaskActivity(activity);
   }
 
-  async findBestTaskMatch(user: AuthenticatedUser, hint: string): Promise<Task | null> {
+  async findBestTaskMatch(
+    user: AuthenticatedUser,
+    hint: string,
+  ): Promise<Task | null> {
     const tasks = await this.listTasks(user, {});
     const normalizedHint = hint.toLowerCase();
 
@@ -394,26 +474,113 @@ export class TasksService {
       tasks.find(
         (task) =>
           task.id.toLowerCase() === normalizedHint ||
-          task.title.toLowerCase().includes(normalizedHint)
+          task.title.toLowerCase().includes(normalizedHint),
       ) ?? null
     );
   }
 
+  private async findDuplicateTasks(
+    user: AuthenticatedUser,
+    title: string,
+    description: string,
+  ): Promise<
+    Array<{
+      id: string;
+      title: string;
+      description: string | null;
+      similarity: number;
+    }>
+  > {
+    const accessibleOrganizationIds =
+      await this.getAccessibleOrganizationIds(user);
+
+    // Get all task embeddings in the user's scope
+    const embeddings = await this.taskEmbeddingsRepository.find({
+      where: accessibleOrganizationIds.map((organizationId) => ({
+        organizationId,
+      })),
+    });
+
+    this.logger.debug(`Found ${embeddings.length} existing task embeddings`);
+
+    if (embeddings.length === 0) {
+      return [];
+    }
+
+    // Embed only title+description so the format matches the query exactly.
+    // Stored embeddings use the full buildTaskDocument() text (with metadata),
+    // which dilutes cosine similarity below the threshold even for near-identical tasks.
+    const newTaskText = `${title} ${description}`.trim();
+    const newEmbedding = embedText(newTaskText);
+
+    const similarities = embeddings.map((embedding) => {
+      const storedText = this.extractTitleDescription(embedding.document);
+      return {
+        taskId: embedding.taskId,
+        similarity: cosineSimilarity(newEmbedding, embedText(storedText)),
+      };
+    });
+
+    const topSimilarities = [...similarities]
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, 3);
+    this.logger.debug(
+      `Top similarities: ${topSimilarities.map((s) => `${s.taskId}=${s.similarity.toFixed(3)}`).join(', ')}`,
+    );
+
+    const duplicateCandidates = similarities.filter((s) => s.similarity > 0.80);
+
+    if (duplicateCandidates.length === 0) {
+      return [];
+    }
+
+    // Fetch the actual task details
+    const tasks = await this.tasksRepository.find({
+      where: duplicateCandidates.map((c) => ({ id: c.taskId })),
+    });
+
+    const taskMap = new Map(tasks.map((task) => [task.id, task]));
+
+    return duplicateCandidates
+      .map((candidate) => {
+        const task = taskMap.get(candidate.taskId);
+        if (!task) return null;
+        return {
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          similarity: candidate.similarity,
+        };
+      })
+      .filter(
+        (
+          item,
+        ): item is {
+          id: string;
+          title: string;
+          description: string | null;
+          similarity: number;
+        } => item !== null,
+      )
+      .sort((a, b) => b.similarity - a.similarity);
+  }
+
   private async resolveOrganizationId(
     user: AuthenticatedUser,
-    requestedOrganizationId?: string
+    requestedOrganizationId?: string,
   ): Promise<string> {
     if (!requestedOrganizationId) {
       return user.organizationId;
     }
 
-    const accessibleOrganizationIds = await this.getAccessibleOrganizationIds(user);
+    const accessibleOrganizationIds =
+      await this.getAccessibleOrganizationIds(user);
 
     const allowed = canAccessOrganization(
       user.role,
       requestedOrganizationId,
       user.organizationId,
-      accessibleOrganizationIds
+      accessibleOrganizationIds,
     );
 
     if (!allowed) {
@@ -434,7 +601,7 @@ export class TasksService {
   private async resolveAssigneeId(
     user: AuthenticatedUser,
     organizationId: string,
-    requestedAssigneeId?: string | null
+    requestedAssigneeId?: string | null,
   ): Promise<string | null> {
     if (!requestedAssigneeId) {
       return null;
@@ -449,13 +616,14 @@ export class TasksService {
       throw new BadRequestException('Assignee not found');
     }
 
-    const accessibleOrganizationIds = await this.getAccessibleOrganizationIds(user);
+    const accessibleOrganizationIds =
+      await this.getAccessibleOrganizationIds(user);
     if (
       !canAccessOrganization(
         user.role,
         assignee.organizationId,
         user.organizationId,
-        accessibleOrganizationIds
+        accessibleOrganizationIds,
       ) ||
       assignee.organizationId !== organizationId
     ) {
@@ -468,7 +636,7 @@ export class TasksService {
   private async getTaskForMutation(
     user: AuthenticatedUser,
     taskId: string,
-    action: string
+    action: string,
   ): Promise<TaskEntity> {
     const task = await this.loadTaskWithRelations(taskId);
 
@@ -476,7 +644,8 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
-    const accessibleOrganizationIds = await this.getAccessibleOrganizationIds(user);
+    const accessibleOrganizationIds =
+      await this.getAccessibleOrganizationIds(user);
     const allowed = this.canReadTask(user, task, accessibleOrganizationIds);
 
     if (!allowed) {
@@ -509,13 +678,13 @@ export class TasksService {
   private canReadTask(
     user: AuthenticatedUser,
     task: TaskEntity,
-    accessibleOrganizationIds: string[]
+    accessibleOrganizationIds: string[],
   ): boolean {
     const organizationAllowed = canAccessOrganization(
       user.role,
       task.organizationId,
       user.organizationId,
-      accessibleOrganizationIds
+      accessibleOrganizationIds,
     );
 
     if (!organizationAllowed) {
@@ -529,24 +698,29 @@ export class TasksService {
     return true;
   }
 
-  private async loadTaskWithRelations(taskId: string): Promise<TaskEntity | null> {
+  private async loadTaskWithRelations(
+    taskId: string,
+  ): Promise<TaskEntity | null> {
     return this.tasksRepository.findOne({
       where: { id: taskId },
       relations: { organization: true, createdBy: true, assignee: true },
     });
   }
 
-  private async getAccessibleOrganizationIds(user: AuthenticatedUser): Promise<string[]> {
-    return this.organizationsService.getAccessibleOrganizationIds(user.role, user.organizationId);
+  private async getAccessibleOrganizationIds(
+    user: AuthenticatedUser,
+  ): Promise<string[]> {
+    return this.organizationsService.getAccessibleOrganizationIds(
+      user.role,
+      user.organizationId,
+    );
   }
 
   private normalizeTags(tags?: string[]): string[] {
     return Array.from(
       new Set(
-        (tags ?? [])
-          .map((tag) => tag.trim().toLowerCase())
-          .filter(Boolean)
-      )
+        (tags ?? []).map((tag) => tag.trim().toLowerCase()).filter(Boolean),
+      ),
     );
   }
 
@@ -555,7 +729,7 @@ export class TasksService {
     actor: AuthenticatedUser,
     type: TaskActivityType,
     message: string,
-    metadata: Record<string, unknown> | null
+    metadata: Record<string, unknown> | null,
   ): Promise<TaskActivityEntity> {
     const activity = this.taskActivitiesRepository.create({
       taskId: task.id,
@@ -573,7 +747,9 @@ export class TasksService {
     try {
       await this.aiService.syncTaskEmbedding(taskId);
     } catch (error) {
-      this.logger.warn(`Failed to sync task embedding for ${taskId}: ${String(error)}`);
+      this.logger.warn(
+        `Failed to sync task embedding for ${taskId}: ${String(error)}`,
+      );
     }
   }
 
@@ -597,6 +773,13 @@ export class TasksService {
       createdAt: task.createdAt.toISOString(),
       updatedAt: task.updatedAt.toISOString(),
     };
+  }
+
+  private extractTitleDescription(document: string): string {
+    const title = document.match(/\[Title\]:\s*(.+)/)?.[1]?.trim() ?? '';
+    const rawDesc = document.match(/\[Description\]:\s*(.+)/)?.[1]?.trim() ?? '';
+    const description = rawDesc === 'None' ? '' : rawDesc;
+    return `${title} ${description}`.trim();
   }
 
   private toTaskActivity(activity: TaskActivityEntity): TaskActivity {

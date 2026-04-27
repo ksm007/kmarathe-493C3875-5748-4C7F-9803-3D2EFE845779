@@ -212,7 +212,7 @@ export class AiService {
     );
   }
 
-  private async createEmbedding(text: string): Promise<number[]> {
+  async createEmbedding(text: string): Promise<number[]> {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
     const model = this.configService.get<string>('EMBEDDING_MODEL', 'text-embedding-3-small');
 

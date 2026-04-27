@@ -1,4 +1,4 @@
-import { CurrentUser, LoginRequest } from '@nx-temp/data';
+import { CurrentUser, LoginRequest, RegisterRequest } from '@nx-temp/data';
 import { createActionGroup, emptyProps, props } from '@ngrx/store';
 
 export const AuthActions = createActionGroup({
@@ -10,6 +10,8 @@ export const AuthActions = createActionGroup({
     'Login Requested': props<{ credentials: LoginRequest }>(),
     'Login Success': props<{ token: string; user: CurrentUser }>(),
     'Login Failure': props<{ error: string }>(),
+    'Register Requested': props<{ payload: RegisterRequest }>(),
+    'Register Failure': props<{ error: string }>(),
     'Logout Requested': emptyProps(),
   },
 });

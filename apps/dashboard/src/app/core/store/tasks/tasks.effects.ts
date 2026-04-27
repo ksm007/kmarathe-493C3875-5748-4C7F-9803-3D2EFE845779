@@ -17,8 +17,8 @@ export class TasksEffects {
   readonly queryChanged$ = createEffect(() =>
     this.actions$.pipe(
       ofType(TasksActions.queryChanged),
-      map(({ query }) => TasksActions.loadRequested({ query }))
-    )
+      map(({ query }) => TasksActions.loadRequested({ query })),
+    ),
   );
 
   readonly load$ = createEffect(() =>
@@ -29,11 +29,13 @@ export class TasksEffects {
           map((tasks) => TasksActions.loadSuccess({ tasks, query })),
           catchError(() => {
             this.toast.error('Tasks unavailable', 'Unable to load tasks.');
-            return of(TasksActions.loadFailure({ error: 'Unable to load tasks.' }));
-          })
-        )
-      )
-    )
+            return of(
+              TasksActions.loadFailure({ error: 'Unable to load tasks.' }),
+            );
+          }),
+        ),
+      ),
+    ),
   );
 
   readonly create$ = createEffect(() =>
@@ -42,16 +44,41 @@ export class TasksEffects {
       concatMap(({ payload }) =>
         this.api.createTask(payload).pipe(
           tap(() => {
-            this.toast.success('Task created', 'The task was added to the board.');
+            this.toast.success(
+              'Task created',
+              'The task was added to the board.',
+            );
           }),
           switchMap(() => this.reloadCurrentQuery()),
-          catchError(() => {
-            this.toast.error('Create failed', 'Unable to save task changes.');
-            return of(TasksActions.loadFailure({ error: 'Unable to save task changes.' }));
-          })
-        )
-      )
-    )
+          catchError((error) => {
+            // Check if this is a duplicate detection error
+            if (
+              error?.error?.message === 'Potential duplicate tasks detected' &&
+              error?.error?.duplicates
+            ) {
+              const duplicates = error.error.duplicates;
+              const duplicateList = duplicates
+                .map(
+                  (d: { title: string; similarity: number }) =>
+                    `• ${d.title} (${Math.round(d.similarity * 100)}% similar)`,
+                )
+                .join('\n');
+              this.toast.error(
+                'Duplicate tasks detected',
+                `Similar tasks found:\n${duplicateList}\n\nPlease review existing tasks before creating a new one.`,
+              );
+            } else {
+              this.toast.error('Create failed', 'Unable to save task changes.');
+            }
+            return of(
+              TasksActions.loadFailure({
+                error: 'Unable to save task changes.',
+              }),
+            );
+          }),
+        ),
+      ),
+    ),
   );
 
   readonly update$ = createEffect(() =>
@@ -65,11 +92,15 @@ export class TasksEffects {
           switchMap(() => this.reloadCurrentQuery()),
           catchError(() => {
             this.toast.error('Update failed', 'Unable to save task changes.');
-            return of(TasksActions.loadFailure({ error: 'Unable to save task changes.' }));
-          })
-        )
-      )
-    )
+            return of(
+              TasksActions.loadFailure({
+                error: 'Unable to save task changes.',
+              }),
+            );
+          }),
+        ),
+      ),
+    ),
   );
 
   readonly delete$ = createEffect(() =>
@@ -83,11 +114,15 @@ export class TasksEffects {
           switchMap(() => this.reloadCurrentQuery()),
           catchError(() => {
             this.toast.error('Delete failed', 'Unable to save task changes.');
-            return of(TasksActions.loadFailure({ error: 'Unable to save task changes.' }));
-          })
-        )
-      )
-    )
+            return of(
+              TasksActions.loadFailure({
+                error: 'Unable to save task changes.',
+              }),
+            );
+          }),
+        ),
+      ),
+    ),
   );
 
   readonly reorder$ = createEffect(() =>
@@ -96,22 +131,29 @@ export class TasksEffects {
       concatMap(({ payload }) =>
         this.api.reorderTasks(payload).pipe(
           tap(() => {
-            this.toast.success('Board updated', 'Task order and status were saved.');
+            this.toast.success(
+              'Board updated',
+              'Task order and status were saved.',
+            );
           }),
           switchMap(() => this.reloadCurrentQuery()),
           catchError(() => {
             this.toast.error('Reorder failed', 'Unable to save task changes.');
-            return of(TasksActions.loadFailure({ error: 'Unable to save task changes.' }));
-          })
-        )
-      )
-    )
+            return of(
+              TasksActions.loadFailure({
+                error: 'Unable to save task changes.',
+              }),
+            );
+          }),
+        ),
+      ),
+    ),
   );
 
   private reloadCurrentQuery() {
     return this.store.select(selectTaskQuery).pipe(
       take(1),
-      map((query) => TasksActions.loadRequested({ query }))
+      map((query) => TasksActions.loadRequested({ query })),
     );
   }
 }

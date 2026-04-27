@@ -6,9 +6,11 @@ import {
   AuditLogEntry,
   ChatMessage,
   CreateTaskRequest,
+  CreateTeamMemberRequest,
   CurrentUser,
   LoginRequest,
   LoginResponse,
+  RegisterRequest,
   TaskActivity,
   TaskDetail,
   ReorderTasksRequest,
@@ -28,6 +30,10 @@ export class ApiService {
 
   login(payload: LoginRequest) {
     return this.http.post<LoginResponse>('/api/auth/login', payload);
+  }
+
+  register(payload: RegisterRequest) {
+    return this.http.post<LoginResponse>('/api/auth/register', payload);
   }
 
   me() {
@@ -62,7 +68,9 @@ export class ApiService {
   }
 
   addTaskComment(id: string, message: string) {
-    return this.http.post<TaskActivity>(`/api/tasks/${id}/comments`, { message });
+    return this.http.post<TaskActivity>(`/api/tasks/${id}/comments`, {
+      message,
+    });
   }
 
   reorderTasks(payload: ReorderTasksRequest) {
@@ -77,6 +85,14 @@ export class ApiService {
     return this.http.get<UserSummary[]>('/api/users', { params });
   }
 
+  createTeamMember(payload: CreateTeamMemberRequest) {
+    return this.http.post<UserSummary>('/api/users', payload);
+  }
+
+  removeTeamMember(id: string) {
+    return this.http.delete<{ success: boolean }>(`/api/users/${id}`);
+  }
+
   getChatHistory(limit = 20, before?: string) {
     let params = new HttpParams().set('limit', String(limit));
     if (before) {
@@ -87,18 +103,24 @@ export class ApiService {
   }
 
   confirmPendingAction(id: string) {
-    return this.http.post<ConfirmPendingChatActionResponse>(`/api/chat/pending-actions/${id}/confirm`, {});
+    return this.http.post<ConfirmPendingChatActionResponse>(
+      `/api/chat/pending-actions/${id}/confirm`,
+      {},
+    );
   }
 
   cancelPendingAction(id: string) {
-    return this.http.post<ConfirmPendingChatActionResponse>(`/api/chat/pending-actions/${id}/cancel`, {});
+    return this.http.post<ConfirmPendingChatActionResponse>(
+      `/api/chat/pending-actions/${id}/cancel`,
+      {},
+    );
   }
 
   async streamChatAsk(
     payload: ChatAskRequest,
     handlers: {
       onEvent: (event: ChatStreamEvent) => void;
-    }
+    },
   ) {
     const token = this.authStorage.getToken();
     const response = await fetch('/api/chat/ask', {
@@ -152,5 +174,9 @@ export class ApiService {
     return this.http.get<AuditLogEntry[]>('/api/audit-log', {
       params: new HttpParams().set('limit', String(limit)),
     });
+  }
+
+  getStandupReport() {
+    return this.http.get<{ report: string }>('/api/reports/standup');
   }
 }

@@ -8,6 +8,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.TaskDelete,
     Permission.TaskReorder,
     Permission.AuditRead,
+    Permission.UserManage,
   ],
   [Role.Admin]: [
     Permission.TaskRead,
@@ -16,6 +17,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.TaskDelete,
     Permission.TaskReorder,
     Permission.AuditRead,
+    Permission.UserManage,
   ],
   [Role.Viewer]: [Permission.TaskRead],
 };

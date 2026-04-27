@@ -9,3 +9,10 @@ export interface LoginResponse {
   accessToken: string;
   user: CurrentUser;
 }
+
+export interface RegisterRequest {
+  email: string;
+  fullName: string;
+  password: string;
+  organizationName: string;
+}
