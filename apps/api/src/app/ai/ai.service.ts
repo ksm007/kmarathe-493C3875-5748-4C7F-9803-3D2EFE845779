@@ -301,44 +301,47 @@ export class AiService {
     const normalized = question.toLowerCase();
     const today = new Date().toISOString().slice(0, 10);
 
+    const formatTask = (task: TaskEntity) => {
+      const assignee = task.assignee?.fullName ?? 'Unassigned';
+      const due = task.dueDate ? ` · due ${task.dueDate}` : '';
+      return `• ${task.title} — ${task.status} · ${task.priority} priority · ${assignee}${due}`;
+    };
+
     if (normalized.includes('overdue')) {
       const overdue = tasks.filter(
         (task) => task.dueDate && task.dueDate < today && task.status !== TaskStatus.Done
       );
       if (overdue.length === 0) {
-        return 'I did not find any overdue tasks in your current scope.';
+        return 'No overdue tasks found in your current scope.';
       }
-
-      return `I found ${overdue.length} overdue task(s): ${overdue
-        .map((task) => `${task.title} (${task.id}) due ${task.dueDate}`)
-        .join(', ')}.`;
+      return `Overdue tasks:\n\n${overdue.map(formatTask).join('\n')}`;
     }
 
     if (/(done|completed|finished|closed)/.test(normalized)) {
       const completed = tasks.filter((task) => task.status === TaskStatus.Done);
       if (completed.length === 0) {
-        return 'I did not find completed tasks matching that request in the retrieved context.';
+        return 'No completed tasks found in the retrieved context.';
       }
-
-      return `Completed work in the retrieved context: ${completed
-        .map((task) => `${task.title} (${task.id})`)
-        .join(', ')}.`;
+      return `Completed tasks:\n\n${completed.map(formatTask).join('\n')}`;
     }
 
-    if (/(blocked|in progress|working on)/.test(normalized)) {
+    if (/(pending|to.?do|not started)/.test(normalized)) {
+      const pending = tasks.filter((task) => task.status === TaskStatus.Todo);
+      if (pending.length === 0) {
+        return 'No pending tasks found in the retrieved context.';
+      }
+      return `Pending tasks:\n\n${pending.map(formatTask).join('\n')}`;
+    }
+
+    if (/(blocked|in progress|working on|active)/.test(normalized)) {
       const active = tasks.filter((task) => task.status === TaskStatus.InProgress);
       if (active.length === 0) {
-        return 'I did not find in-progress tasks matching that request in the retrieved context.';
+        return 'No in-progress tasks found in the retrieved context.';
       }
-
-      return `Active tasks in the retrieved context: ${active
-        .map((task) => `${task.title} (${task.id})`)
-        .join(', ')}.`;
+      return `In-progress tasks:\n\n${active.map(formatTask).join('\n')}`;
     }
 
-    return `Here are the most relevant tasks I found: ${sources
-      .map((source) => `${source.title} (${source.taskId})`)
-      .join(', ')}.`;
+    return `Here are the most relevant tasks:\n\n${tasks.map(formatTask).join('\n')}`;
   }
 
   private async logInteraction(params: {

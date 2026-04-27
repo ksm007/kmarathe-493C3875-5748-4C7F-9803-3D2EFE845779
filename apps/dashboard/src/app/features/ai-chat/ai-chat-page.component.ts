@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ChatMessage, ChatSource } from '@nx-temp/data';
 import * as d3 from 'd3';
 import { firstValueFrom } from 'rxjs';
@@ -48,30 +49,39 @@ import { ApiService } from '../../core/services/api.service';
               Start with a quick action on the right or ask a free-form question about your tasks.
             </div>
 
-            <article *ngFor="let message of messages()" class="space-y-2">
+            <article *ngFor="let message of messages()" class="space-y-3">
+              <!-- User bubble -->
               <div
-                class="max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6"
-                [class.ml-auto]="message.role === 'user'"
-                [class.bg-primary]="message.role === 'user'"
-                [class.text-on-primary]="message.role === 'user'"
-                [class.bg-surface-container-low]="message.role === 'assistant'"
-                [class.text-on-surface]="message.role === 'assistant'"
+                *ngIf="message.role === 'user'"
+                class="ml-auto max-w-[80%] rounded-2xl rounded-tr-sm bg-primary px-4 py-3 text-sm leading-6 text-on-primary"
               >
                 {{ message.content }}
               </div>
 
-              <div *ngIf="message.sources.length > 0" class="grid gap-2 sm:grid-cols-2">
+              <!-- Assistant bubble -->
+              <div
+                *ngIf="message.role === 'assistant'"
+                class="max-w-[85%] rounded-2xl rounded-tl-sm border border-outline-variant/50 bg-surface-container-low px-5 py-4 text-sm text-on-surface shadow-card"
+                [innerHTML]="formatMessage(message.content)"
+              ></div>
+
+              <!-- Source chips — title only, ID used only for navigation -->
+              <div *ngIf="message.sources.length > 0" class="flex flex-wrap gap-2 pl-1">
                 <a
                   *ngFor="let source of message.sources"
                   [routerLink]="['/tasks', source.taskId]"
-                  class="rounded-xl border border-outline-variant bg-surface-container-low px-3 py-3 text-sm text-on-surface transition hover:border-primary"
+                  class="flex items-center gap-2 rounded-full border border-outline-variant bg-surface px-3 py-1.5 text-xs text-on-surface transition hover:border-primary hover:bg-surface-container-low"
                 >
-                  <div class="font-medium">{{ source.title }}</div>
-                  <div class="mt-1 text-xs text-on-surface-variant">{{ source.taskId }} • similarity {{ source.similarity | number: '1.2-2' }}</div>
+                  <span class="material-symbols-outlined text-[14px] text-primary">task_alt</span>
+                  <span class="font-medium">{{ source.title }}</span>
+                  <span class="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                    {{ (source.similarity * 100) | number: '1.0-0' }}%
+                  </span>
                 </a>
               </div>
 
-              <div *ngIf="message.pendingAction && message.pendingAction.status === 'pending'" class="flex gap-2">
+              <!-- Pending action confirm/cancel -->
+              <div *ngIf="message.pendingAction && message.pendingAction.status === 'pending'" class="flex gap-2 pl-1">
                 <button class="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-on-primary" type="button" (click)="confirm(message.pendingAction.id)">
                   Confirm
                 </button>
@@ -81,7 +91,9 @@ import { ApiService } from '../../core/services/api.service';
               </div>
             </article>
 
-            <div *ngIf="streamingContent()" class="max-w-[85%] rounded-2xl bg-surface-container-low px-4 py-3 text-sm text-on-surface">
+            <!-- Streaming indicator -->
+            <div *ngIf="streamingContent()" class="max-w-[85%] rounded-2xl rounded-tl-sm border border-outline-variant/50 bg-surface-container-low px-5 py-4 text-sm text-on-surface shadow-card">
+              <span class="inline-block h-2 w-2 animate-pulse rounded-full bg-primary"></span>
               {{ streamingContent() }}
             </div>
 
@@ -141,7 +153,10 @@ import { ApiService } from '../../core/services/api.service';
               class="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface transition hover:border-primary"
             >
               <div class="font-medium">{{ source.title }}</div>
-              <div class="mt-1 text-xs text-on-surface-variant">{{ source.taskId }}</div>
+              <div class="mt-1 flex items-center gap-1.5 text-xs text-on-surface-variant">
+                <span class="inline-block h-1.5 w-1.5 rounded-full bg-primary"></span>
+                {{ (source.similarity * 100) | number: '1.0-0' }}% match
+              </div>
             </a>
             <p *ngIf="recentSources().length === 0" class="text-sm text-on-surface-variant">
               No cited tasks yet.
@@ -163,6 +178,7 @@ import { ApiService } from '../../core/services/api.service';
 })
 export class AiChatPageComponent implements AfterViewInit {
   private readonly api = inject(ApiService);
+  private readonly sanitizer = inject(DomSanitizer);
   @ViewChild('sourceChart') private sourceChart?: ElementRef<SVGSVGElement>;
 
   readonly messages = signal<ChatMessage[]>([]);
@@ -385,6 +401,52 @@ export class AiChatPageComponent implements AfterViewInit {
       .attr('fill', '#52606d')
       .attr('font-size', 11)
       .text((datum: ChatSource) => datum.similarity.toFixed(2));
+  }
+
+  formatMessage(content: string): SafeHtml {
+    const lines = content.split('\n');
+    const parts: string[] = [];
+    let inList = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        if (inList) { parts.push('</ul>'); inList = false; }
+        continue;
+      }
+
+      if (trimmed.startsWith('•') || trimmed.startsWith('-')) {
+        const text = trimmed.replace(/^[•\-]\s*/, '');
+        // Split on " — " to pull out the title vs metadata
+        const [title, ...meta] = text.split(' — ');
+        if (!inList) { parts.push('<ul class="mt-2 space-y-2">'); inList = true; }
+        parts.push(
+          `<li class="flex flex-col gap-0.5 rounded-lg border border-outline-variant/40 bg-surface px-3 py-2">` +
+          `<span class="font-medium text-on-surface">${this.escapeHtml(title)}</span>` +
+          (meta.length ? `<span class="text-xs text-on-surface-variant">${this.escapeHtml(meta.join(' — '))}</span>` : '') +
+          `</li>`
+        );
+      } else {
+        if (inList) { parts.push('</ul>'); inList = false; }
+        // Section header (ends with colon)
+        if (trimmed.endsWith(':')) {
+          parts.push(`<p class="font-semibold text-on-surface mb-1">${this.escapeHtml(trimmed)}</p>`);
+        } else {
+          parts.push(`<p class="text-on-surface-variant leading-6">${this.escapeHtml(trimmed)}</p>`);
+        }
+      }
+    }
+
+    if (inList) parts.push('</ul>');
+    return this.sanitizer.bypassSecurityTrustHtml(parts.join(''));
+  }
+
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   private truncateLabel(label: string, maxLength: number) {

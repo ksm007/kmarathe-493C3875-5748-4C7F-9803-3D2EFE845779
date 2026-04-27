@@ -25,11 +25,19 @@ export function classifyIntent(message: string): ChatIntent {
     return 'delete_task';
   }
 
+  // Explicit create signals, including "a task with title/description as"
   if (/\b(create|add|new|remind me to)\b/.test(normalized)) {
     return 'create_task';
   }
 
-  if (/\b(update|change|rename|move|mark|set)\b/.test(normalized)) {
+  if (/\ba\s+task\s+with\b/.test(normalized) && /\btitle\s+(?:of\s+(?:the\s+)?task\s+)?(?:as|:)/.test(normalized)) {
+    return 'create_task';
+  }
+
+  // Only classify as update if "update/change/..." appears as a standalone verb,
+  // not inside a quoted title phrase like "title as security update"
+  const withoutTitleClause = normalized.replace(/\btitle\s+(?:of\s+(?:the\s+)?task\s+)?(?:as|:)\s+.+?(?=\s+and\s+|\s+description\s+|$)/gi, '');
+  if (/\b(update|change|rename|move|mark|set)\b/.test(withoutTitleClause)) {
     return 'update_task';
   }
 
@@ -48,6 +56,7 @@ export function parseIntent(message: string): IntentParseResult {
 
   if (intent === 'create_task') {
     mutation.title = extractTitle(normalized) ?? 'New task';
+    mutation.description = extractDescription(normalized) ?? null;
     mutation.category = inferCategory(normalized);
     mutation.priority = inferPriority(normalized);
     mutation.status = inferStatus(normalized) ?? TaskStatus.Todo;
@@ -70,19 +79,37 @@ export function parseIntent(message: string): IntentParseResult {
 }
 
 function extractTitle(message: string): string | null {
+  // Explicit "title as X" or "title of task as X" — highest priority
+  const explicit = message.match(/\btitle\s+(?:of\s+(?:the\s+)?task\s+)?(?:as|:)\s+(.+?)(?=\s+and\s+description|\s+description\s+(?:of|as)|\s+with\s+(?:high|low|medium|critical|urgent)\s+priority|$)/i);
+  if (explicit?.[1]) {
+    return cleanupTitle(explicit[1]);
+  }
+
+  // Strip description/priority clauses then pull what follows the create verb
+  const stripped = message
+    .replace(/\s+(?:and\s+)?description\s+(?:of\s+(?:the\s+)?task\s+)?(?:as|:)\s+.+?(?=\s+with\s+|$)/gi, '')
+    .replace(/\s+with\s+(?:high|low|medium|critical|urgent)\s+priority\b/gi, '')
+    .replace(/\s+(?:high|low|medium|critical|urgent)\s+priority\b/gi, '');
+
   const patterns = [
-    /(?:create|add|new task|remind me to)\s+(?:a\s+task\s+to\s+)?(.+)/i,
+    /(?:create|add|new task|remind me to)\s+(?:a\s+task\s+(?:with\s+\w+\s+priority\s+)?(?:and\s+)?(?:titled?|called?|named?)\s+)?(.+)/i,
+    /task\s+(?:titled?|called?|named?)\s+(.+)/i,
     /task to\s+(.+)/i,
   ];
 
   for (const pattern of patterns) {
-    const match = message.match(pattern);
+    const match = stripped.match(pattern);
     if (match?.[1]) {
       return cleanupTitle(match[1]);
     }
   }
 
   return null;
+}
+
+function extractDescription(message: string): string | null {
+  const match = message.match(/\bdescription\s+(?:of\s+(?:the\s+)?task\s+)?(?:as|:)\s+(.+?)(?=\s+with\s+(?:high|low|medium|critical|urgent)\s+priority\b|$)/i);
+  return match?.[1] ? cleanupText(match[1]) : null;
 }
 
 function extractTaskHint(message: string): string | null {
@@ -112,12 +139,16 @@ function inferCategory(message: string): TaskCategory {
 }
 
 function inferPriority(message: string): TaskPriority {
-  if (/\b(critical|urgent|p0|high priority)\b/i.test(message)) {
+  if (/\b(critical|urgent|p0|high\s*priority|priority\s*high|\bhigh\b)\b/i.test(message)) {
     return TaskPriority.High;
   }
 
-  if (/\b(low priority|later|someday)\b/i.test(message)) {
+  if (/\b(low\s*priority|priority\s*low|later|someday|\blow\b)\b/i.test(message)) {
     return TaskPriority.Low;
+  }
+
+  if (/\b(medium\s*priority|priority\s*medium|\bmedium\b)\b/i.test(message)) {
+    return TaskPriority.Medium;
   }
 
   return TaskPriority.Medium;
@@ -170,9 +201,14 @@ function cleanupText(value: string): string {
 function cleanupTitle(value: string): string {
   return cleanupText(
     value
-      .replace(/\s+(and\s+)?add it to\s+(the\s+)?in progress\b.*$/i, '')
-      .replace(/\s+(and\s+)?mark it as\s+(the\s+)?in progress\b.*$/i, '')
-      .replace(/\s+(and\s+)?set (the )?status to\s+[a-z_\s-]+\b.*$/i, '')
-      .replace(/\s+(and\s+)?put it in\s+[a-z_\s-]+\b.*$/i, '')
+      .replace(/\s+(?:and\s+)?description\s+(?:of\s+(?:the\s+)?task\s+)?(?:as|:)\s+.+$/i, '')
+      .replace(/\s+(?:and\s+)?add it to\s+(the\s+)?in progress\b.*$/i, '')
+      .replace(/\s+(?:and\s+)?mark it as\s+(the\s+)?in progress\b.*$/i, '')
+      .replace(/\s+(?:and\s+)?set (the )?status to\s+[a-z_\s-]+\b.*$/i, '')
+      .replace(/\s+(?:and\s+)?put it in\s+[a-z_\s-]+\b.*$/i, '')
+      .replace(/\s+with\s+(?:high|low|medium|critical|urgent)\s+priority\b.*$/i, '')
+      .replace(/\s+(?:high|low|medium|critical|urgent)\s+priority\b.*$/i, '')
+      .replace(/\s+a\s+task\s+(with\s+)?/i, ' ')
+      .trim()
   );
 }
