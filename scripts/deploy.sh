@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e  # exit immediately on any error
 
-APP_DIR="${APP_DIR:-/home/ksm/turbo-vets/kmarathe-493C3875-5748-4C7F-9803-3D2EFE845779}"
+APP_DIR="${APP_DIR:-/ksm/turbo-vets/kmarathe-493C3875-5748-4C7F-9803-3D2EFE845779}"
 cd "$APP_DIR"
 
 echo "[1/5] Pulling latest code..."
