@@ -609,24 +609,18 @@ export class TasksService {
 
     const assignee = await this.usersRepository.findOne({
       where: { id: requestedAssigneeId },
-      relations: { organization: true },
     });
 
     if (!assignee) {
       throw new BadRequestException('Assignee not found');
     }
 
-    const accessibleOrganizationIds =
-      await this.getAccessibleOrganizationIds(user);
-    if (
-      !canAccessOrganization(
-        user.role,
-        assignee.organizationId,
-        user.organizationId,
-        accessibleOrganizationIds,
-      ) ||
-      assignee.organizationId !== organizationId
-    ) {
+    // Verify the assignee is a member of the target organization
+    const isMember = await this.tasksRepository.manager.exists(
+      (await import('../database/entities/membership.entity')).MembershipEntity,
+      { where: { userId: requestedAssigneeId, organizationId } }
+    );
+    if (!isMember) {
       throw new ForbiddenException('Assignee is outside your scope');
     }
 

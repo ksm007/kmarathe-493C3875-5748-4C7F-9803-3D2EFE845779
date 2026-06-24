@@ -8,16 +8,28 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { UsersModule } from '../users/users.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { OrganizationEntity, UserEntity } from '../database/entities';
+import { EmailModule } from '../email/email.module';
+import {
+  InvitationEntity,
+  MembershipEntity,
+  OrganizationEntity,
+  PasswordResetTokenEntity,
+  UserEntity,
+} from '../database/entities';
 
 @Module({
   imports: [
     ConfigModule,
     PassportModule,
-    UsersModule,
-    TypeOrmModule.forFeature([UserEntity, OrganizationEntity]),
+    EmailModule,
+    TypeOrmModule.forFeature([
+      UserEntity,
+      OrganizationEntity,
+      MembershipEntity,
+      InvitationEntity,
+      PasswordResetTokenEntity,
+    ]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

@@ -1,7 +1,7 @@
 import { BaseEntity } from '../../common/entities/base.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
+import { MembershipEntity } from './membership.entity';
 import { TaskEntity } from './task.entity';
-import { UserEntity } from './user.entity';
 
 @Entity({ name: 'organizations' })
 export class OrganizationEntity extends BaseEntity {
@@ -26,8 +26,8 @@ export class OrganizationEntity extends BaseEntity {
   @Column({ type: 'int', default: 1 })
   level!: number;
 
-  @OneToMany(() => UserEntity, (user) => user.organization)
-  users!: UserEntity[];
+  @OneToMany(() => MembershipEntity, (membership) => membership.organization)
+  memberships!: MembershipEntity[];
 
   @OneToMany(() => TaskEntity, (task) => task.organization)
   tasks!: TaskEntity[];

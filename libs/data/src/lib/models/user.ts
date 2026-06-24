@@ -1,3 +1,4 @@
+import { MembershipInfo } from './membership';
 import { Role } from './roles';
 
 export interface CurrentUser {
@@ -7,6 +8,7 @@ export interface CurrentUser {
   role: Role;
   organizationId: string;
   organizationName: string;
+  memberships: MembershipInfo[];
 }
 
 export interface User extends CurrentUser {

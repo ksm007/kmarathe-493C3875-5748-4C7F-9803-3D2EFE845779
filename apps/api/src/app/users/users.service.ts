@@ -1,80 +1,39 @@
-import { AuthenticatedUser, canAccessOrganization } from '@nx-temp/auth';
-import { CreateTeamMemberRequest, Role, UserSummary } from '@nx-temp/data';
+import { AuthenticatedUser } from '@nx-temp/auth';
+import { Role, UserSummary } from '@nx-temp/data';
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
-import { UserEntity } from '../database/entities';
-import { OrganizationsService } from '../organizations/organizations.service';
+import { MembershipEntity, UserEntity } from '../database/entities';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(UserEntity)
-    private readonly usersRepository: Repository<UserEntity>,
-    private readonly organizationsService: OrganizationsService
+    private readonly usersRepo: Repository<UserEntity>,
+    @InjectRepository(MembershipEntity)
+    private readonly membershipsRepo: Repository<MembershipEntity>
   ) {}
 
   findByEmailWithPassword(email: string) {
-    return this.usersRepository
+    return this.usersRepo
       .createQueryBuilder('user')
-      .leftJoinAndSelect('user.organization', 'organization')
       .addSelect('user.passwordHash')
+      .leftJoinAndSelect('user.memberships', 'membership')
+      .leftJoinAndSelect('membership.organization', 'org')
       .where('LOWER(user.email) = LOWER(:email)', { email })
       .getOne();
   }
 
   findById(id: string) {
-    return this.usersRepository.findOne({
+    return this.usersRepo.findOne({
       where: { id },
-      relations: { organization: true },
+      relations: { memberships: { organization: true } },
     });
-  }
-
-  async createTeamMember(
-    requester: AuthenticatedUser,
-    payload: CreateTeamMemberRequest
-  ): Promise<UserSummary> {
-    // Admins cannot create Owners — no privilege escalation
-    if (requester.role === Role.Admin && payload.role === Role.Owner) {
-      throw new ForbiddenException('Admins cannot create Owner accounts');
-    }
-
-    const existing = await this.usersRepository.findOne({
-      where: { email: payload.email.toLowerCase() },
-    });
-    if (existing) {
-      throw new ConflictException('An account with this email already exists');
-    }
-
-    const passwordHash = await bcrypt.hash(payload.password, 10);
-    const user = await this.usersRepository.save(
-      this.usersRepository.create({
-        email: payload.email.toLowerCase(),
-        fullName: payload.fullName,
-        passwordHash,
-        role: payload.role,
-        organizationId: requester.organizationId,
-      })
-    );
-
-    const hydrated = await this.findById(user.id);
-    if (!hydrated) throw new BadRequestException('Failed to create user');
-
-    return {
-      id: hydrated.id,
-      fullName: hydrated.fullName,
-      email: hydrated.email,
-      role: hydrated.role,
-      organizationId: hydrated.organizationId,
-      organizationName: hydrated.organization.name,
-    };
   }
 
   async removeTeamMember(requester: AuthenticatedUser, targetId: string): Promise<void> {
@@ -82,69 +41,33 @@ export class UsersService {
       throw new BadRequestException('You cannot remove your own account');
     }
 
-    const target = await this.usersRepository.findOne({
-      where: { id: targetId },
-      relations: { organization: true },
+    const targetMembership = await this.membershipsRepo.findOne({
+      where: { userId: targetId, organizationId: requester.organizationId },
     });
 
-    if (!target) throw new NotFoundException('User not found');
+    if (!targetMembership) throw new NotFoundException('User not found in this organization');
 
-    const accessibleOrganizationIds = await this.organizationsService.getAccessibleOrganizationIds(
-      requester.role,
-      requester.organizationId
-    );
-
-    if (!canAccessOrganization(requester.role, target.organizationId, requester.organizationId, accessibleOrganizationIds)) {
-      throw new ForbiddenException('User is outside your scope');
-    }
-
-    // Admins cannot remove Owners
-    if (requester.role === Role.Admin && target.role === Role.Owner) {
+    if (requester.role === Role.Admin && targetMembership.role === Role.Owner) {
       throw new ForbiddenException('Admins cannot remove Owner accounts');
     }
 
-    await this.usersRepository.remove(target);
+    await this.membershipsRepo.remove(targetMembership);
   }
 
-  async listScopedUsers(
-    user: AuthenticatedUser,
-    requestedOrganizationId?: string
-  ): Promise<UserSummary[]> {
-    const accessibleOrganizationIds = await this.organizationsService.getAccessibleOrganizationIds(
-      user.role,
-      user.organizationId
-    );
-    const organizationIds = requestedOrganizationId
-      ? [requestedOrganizationId]
-      : user.role === Role.Owner
-        ? accessibleOrganizationIds
-        : [user.organizationId];
-
-    if (
-      requestedOrganizationId &&
-      !canAccessOrganization(
-        user.role,
-        requestedOrganizationId,
-        user.organizationId,
-        accessibleOrganizationIds
-      )
-    ) {
-      return [];
-    }
-
-    const users = await this.usersRepository.find({
-      where: organizationIds.map((organizationId) => ({ organizationId })),
-      relations: { organization: true },
-      order: { fullName: 'ASC' },
+  async listScopedUsers(user: AuthenticatedUser): Promise<UserSummary[]> {
+    const memberships = await this.membershipsRepo.find({
+      where: { organizationId: user.organizationId },
+      relations: { user: true, organization: true },
+      order: { user: { fullName: 'ASC' } },
     });
 
-    return users.map((entry) => ({
-      id: entry.id,
-      fullName: entry.fullName,
-      email: entry.email,
-      role: entry.role,
-      organizationId: entry.organizationId,
-      organizationName: entry.organization.name,
+    return memberships.map((m) => ({
+      id: m.user.id,
+      fullName: m.user.fullName,
+      email: m.user.email,
+      role: m.role as Role,
+      organizationId: m.organizationId,
+      organizationName: m.organization.name,
     }));
   }
 }

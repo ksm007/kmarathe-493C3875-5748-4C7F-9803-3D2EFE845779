@@ -4,6 +4,9 @@ export interface AppEnv {
   JWT_EXPIRES_IN: string;
   PORT: string;
   CORS_ORIGIN: string;
+  APP_URL: string;
+  RESEND_API_KEY: string;
+  FROM_EMAIL: string;
   OPENAI_API_KEY: string;
   LLM_PROVIDER: string;
   OPENAI_MODEL: string;
@@ -28,6 +31,9 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
     JWT_EXPIRES_IN: String(config.JWT_EXPIRES_IN ?? '8h'),
     PORT: String(config.PORT ?? '3000'),
     CORS_ORIGIN: String(config.CORS_ORIGIN ?? 'http://localhost:4200'),
+    APP_URL: String(config.APP_URL ?? 'http://localhost:3000'),
+    RESEND_API_KEY: String(config.RESEND_API_KEY ?? ''),
+    FROM_EMAIL: String(config.FROM_EMAIL ?? 'noreply@example.com'),
     OPENAI_API_KEY: String(config.OPENAI_API_KEY ?? ''),
     LLM_PROVIDER: String(config.LLM_PROVIDER ?? 'openai'),
     OPENAI_MODEL: String(config.OPENAI_MODEL ?? config.LLM_MODEL ?? 'gpt-4o-mini'),

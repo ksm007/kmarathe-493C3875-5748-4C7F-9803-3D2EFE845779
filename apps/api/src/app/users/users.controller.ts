@@ -1,7 +1,6 @@
 import { CurrentUser, RequirePermissions } from '@nx-temp/auth';
-import { Permission, UserQuery } from '@nx-temp/data';
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
-import { CreateTeamMemberDto } from './dto/create-team-member.dto';
+import { Permission } from '@nx-temp/data';
+import { Body, Controller, Delete, Get, Param } from '@nestjs/common';
 import { UsersService } from './users.service';
 
 @Controller('users')
@@ -10,14 +9,8 @@ export class UsersController {
 
   @Get()
   @RequirePermissions(Permission.TaskRead)
-  list(@CurrentUser() user: never, @Query() query: UserQuery) {
-    return this.usersService.listScopedUsers(user, query.organizationId);
-  }
-
-  @Post()
-  @RequirePermissions(Permission.UserManage)
-  create(@CurrentUser() user: never, @Body() body: CreateTeamMemberDto) {
-    return this.usersService.createTeamMember(user, body);
+  list(@CurrentUser() user: never) {
+    return this.usersService.listScopedUsers(user);
   }
 
   @Delete(':id')

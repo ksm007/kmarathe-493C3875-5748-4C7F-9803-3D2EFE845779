@@ -3,12 +3,8 @@ import * as bcrypt from 'bcrypt';
 import { TaskCategory, TaskPriority, TaskStatus, Role } from '@nx-temp/data';
 import { apiDataSource } from '../app/database/data-source';
 import {
-  ChatMessageEntity,
-  ChatPendingActionEntity,
-  LlmInteractionEntity,
+  MembershipEntity,
   OrganizationEntity,
-  TaskActivityEntity,
-  TaskEmbeddingEntity,
   TaskEntity,
   UserEntity,
 } from '../app/database/entities';
@@ -16,9 +12,10 @@ import {
 async function seed() {
   await apiDataSource.initialize();
 
-  const organizationsRepository = apiDataSource.getRepository(OrganizationEntity);
-  const usersRepository = apiDataSource.getRepository(UserEntity);
-  const tasksRepository = apiDataSource.getRepository(TaskEntity);
+  const orgsRepo = apiDataSource.getRepository(OrganizationEntity);
+  const usersRepo = apiDataSource.getRepository(UserEntity);
+  const membershipsRepo = apiDataSource.getRepository(MembershipEntity);
+  const tasksRepo = apiDataSource.getRepository(TaskEntity);
 
   await apiDataSource.query(`
     TRUNCATE TABLE
@@ -28,64 +25,40 @@ async function seed() {
       "audit_logs",
       "task_embeddings",
       "task_activities",
+      "invitations",
+      "password_reset_tokens",
+      "memberships",
       "tasks",
       "users",
       "organizations"
     RESTART IDENTITY CASCADE
   `);
 
-  const parentOrganization = organizationsRepository.create({
-    name: 'Acme HQ',
-    slug: 'acme-hq',
-    parentOrganizationId: null,
-    level: 1,
-  });
-  const savedParent = await organizationsRepository.save(parentOrganization);
-
-  const childOrganization = organizationsRepository.create({
-    name: 'Acme Field Ops',
-    slug: 'acme-field-ops',
-    parentOrganizationId: savedParent.id,
-    level: 2,
-  });
-  const savedChild = await organizationsRepository.save(childOrganization);
+  const parentOrg = await orgsRepo.save(
+    orgsRepo.create({ name: 'Acme HQ', slug: 'acme-hq', parentOrganizationId: null, level: 1 })
+  );
+  const childOrg = await orgsRepo.save(
+    orgsRepo.create({ name: 'Acme Field Ops', slug: 'acme-field-ops', parentOrganizationId: parentOrg.id, level: 2 })
+  );
 
   const passwordHash = await bcrypt.hash('Password123!', 10);
-  const users = await usersRepository.save([
-    usersRepository.create({
-      email: 'owner@acme.test',
-      fullName: 'Olivia Owner',
-      role: Role.Owner,
-      passwordHash,
-      organizationId: savedParent.id,
-    }),
-    usersRepository.create({
-      email: 'admin@acme.test',
-      fullName: 'Andy Admin',
-      role: Role.Admin,
-      passwordHash,
-      organizationId: savedParent.id,
-    }),
-    usersRepository.create({
-      email: 'viewer@acme.test',
-      fullName: 'Vera Viewer',
-      role: Role.Viewer,
-      passwordHash,
-      organizationId: savedParent.id,
-    }),
-    usersRepository.create({
-      email: 'field-admin@acme.test',
-      fullName: 'Casey Field Admin',
-      role: Role.Admin,
-      passwordHash,
-      organizationId: savedChild.id,
-    }),
+
+  const [owner, admin, viewer, fieldAdmin] = await usersRepo.save([
+    usersRepo.create({ email: 'owner@acme.test', fullName: 'Olivia Owner', passwordHash, googleId: null }),
+    usersRepo.create({ email: 'admin@acme.test', fullName: 'Andy Admin', passwordHash, googleId: null }),
+    usersRepo.create({ email: 'viewer@acme.test', fullName: 'Vera Viewer', passwordHash, googleId: null }),
+    usersRepo.create({ email: 'field-admin@acme.test', fullName: 'Casey Field Admin', passwordHash, googleId: null }),
   ]);
 
-  const [owner, admin, viewer, fieldAdmin] = users;
+  await membershipsRepo.save([
+    membershipsRepo.create({ userId: owner.id, organizationId: parentOrg.id, role: Role.Owner }),
+    membershipsRepo.create({ userId: admin.id, organizationId: parentOrg.id, role: Role.Admin }),
+    membershipsRepo.create({ userId: viewer.id, organizationId: parentOrg.id, role: Role.Viewer }),
+    membershipsRepo.create({ userId: fieldAdmin.id, organizationId: childOrg.id, role: Role.Admin }),
+  ]);
 
-  await tasksRepository.save([
-    tasksRepository.create({
+  await tasksRepo.save([
+    tasksRepo.create({
       title: 'Review quarterly security checklist',
       description: 'Validate RBAC, secrets rotation, and vendor access.',
       status: TaskStatus.Todo,
@@ -95,10 +68,10 @@ async function seed() {
       dueDate: new Date().toISOString().slice(0, 10),
       tags: ['security', 'compliance'],
       position: 0,
-      organizationId: savedParent.id,
+      organizationId: parentOrg.id,
       createdById: owner.id,
     }),
-    tasksRepository.create({
+    tasksRepo.create({
       title: 'Prepare executive task summary',
       description: 'Summarize key workstream status for leadership.',
       status: TaskStatus.InProgress,
@@ -108,10 +81,10 @@ async function seed() {
       dueDate: null,
       tags: ['reporting', 'leadership'],
       position: 0,
-      organizationId: savedParent.id,
+      organizationId: parentOrg.id,
       createdById: admin.id,
     }),
-    tasksRepository.create({
+    tasksRepo.create({
       title: 'Finish route readiness checklist',
       description: 'Confirm the field team has completed truck prep.',
       status: TaskStatus.Todo,
@@ -121,10 +94,10 @@ async function seed() {
       dueDate: null,
       tags: ['ops', 'field'],
       position: 0,
-      organizationId: savedChild.id,
+      organizationId: childOrg.id,
       createdById: fieldAdmin.id,
     }),
-    tasksRepository.create({
+    tasksRepo.create({
       title: 'Update personal development plan',
       description: 'Review training goals for the next quarter.',
       status: TaskStatus.Done,
@@ -134,7 +107,7 @@ async function seed() {
       dueDate: null,
       tags: ['growth'],
       position: 0,
-      organizationId: savedParent.id,
+      organizationId: parentOrg.id,
       createdById: viewer.id,
     }),
   ]);

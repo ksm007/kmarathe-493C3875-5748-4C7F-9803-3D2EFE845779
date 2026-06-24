@@ -30,6 +30,7 @@ const USER = {
   role: Role.Admin,
   email: 'test@test.com',
   fullName: 'Test User',
+  memberships: [{ organizationId: 'org-1', organizationName: 'Test Org', role: Role.Admin }],
 };
 
 const BASE_PAYLOAD = {

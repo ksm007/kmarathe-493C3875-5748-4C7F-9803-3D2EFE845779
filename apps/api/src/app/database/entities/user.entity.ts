@@ -1,8 +1,7 @@
-import { Role } from '@nx-temp/data';
 import { BaseEntity } from '../../common/entities/base.entity';
-import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
+import { Column, Entity, Index, OneToMany } from 'typeorm';
 import { AuditLogEntity } from './audit-log.entity';
-import { OrganizationEntity } from './organization.entity';
+import { MembershipEntity } from './membership.entity';
 import { TaskActivityEntity } from './task-activity.entity';
 import { TaskEntity } from './task.entity';
 
@@ -15,19 +14,14 @@ export class UserEntity extends BaseEntity {
   @Column({ type: 'varchar', length: 160 })
   fullName!: string;
 
-  @Column({ type: 'varchar', length: 255, select: false })
-  passwordHash!: string;
+  @Column({ type: 'varchar', length: 255, select: false, nullable: true })
+  passwordHash!: string | null;
 
-  @Column({ type: 'varchar', length: 24 })
-  role!: Role;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  googleId!: string | null;
 
-  @Column({ type: 'varchar', length: 36 })
-  organizationId!: string;
-
-  @ManyToOne(() => OrganizationEntity, (organization) => organization.users, {
-    onDelete: 'CASCADE',
-  })
-  organization!: OrganizationEntity;
+  @OneToMany(() => MembershipEntity, (membership) => membership.user)
+  memberships!: MembershipEntity[];
 
   @OneToMany(() => TaskEntity, (task) => task.createdBy)
   createdTasks!: TaskEntity[];
