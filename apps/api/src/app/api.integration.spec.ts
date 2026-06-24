@@ -107,13 +107,16 @@ describe('API integration', () => {
       new ConfigService({
         JWT_SECRET: 'test-secret',
         JWT_EXPIRES_IN: '1h',
-      })
+      }),
+      usersRepository,
+      organizationsRepository
     );
     tasksService = new TasksService(
       tasksRepository,
       organizationsRepository,
       usersRepository,
       taskActivitiesRepository,
+      taskEmbeddingsRepository,
       organizationsService,
       auditService,
       aiService

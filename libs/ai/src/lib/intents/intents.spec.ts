@@ -32,4 +32,13 @@ describe('parseIntent — title/description extraction', () => {
     expect(result.mutation.title).not.toMatch(/high|priority/i);
     expect(result.mutation.priority).toBe('high');
   });
+
+  it('extracts a task-to title before status clauses', () => {
+    const result = parseIntent(
+      'Create a task to write unit tests for the user module and add it to in progress',
+    );
+
+    expect(result.mutation.title).toBe('write unit tests for the user module');
+    expect(result.mutation.status).toBe('in_progress');
+  });
 });

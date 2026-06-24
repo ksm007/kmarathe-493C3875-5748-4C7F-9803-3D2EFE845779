@@ -92,9 +92,9 @@ function extractTitle(message: string): string | null {
     .replace(/\s+(?:high|low|medium|critical|urgent)\s+priority\b/gi, '');
 
   const patterns = [
+    /task to\s+(.+)/i,
     /(?:create|add|new task|remind me to)\s+(?:a\s+task\s+(?:with\s+\w+\s+priority\s+)?(?:and\s+)?(?:titled?|called?|named?)\s+)?(.+)/i,
     /task\s+(?:titled?|called?|named?)\s+(.+)/i,
-    /task to\s+(.+)/i,
   ];
 
   for (const pattern of patterns) {
