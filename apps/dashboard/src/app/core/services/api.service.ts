@@ -3,13 +3,16 @@ import {
   ChatHistoryResponse,
   ChatStreamEvent,
   ConfirmPendingChatActionResponse,
+  AcceptInvitationRequest,
   AuditLogEntry,
   ChatMessage,
   CompleteSprintRequest,
+  CreateInvitationRequest,
   CreateSprintRequest,
   CreateTaskRequest,
   CreateTeamMemberRequest,
   CurrentUser,
+  InvitationResponse,
   LoginRequest,
   LoginResponse,
   RegisterRequest,
@@ -107,6 +110,18 @@ export class ApiService {
 
   completeSprint(id: string, payload: CompleteSprintRequest) {
     return this.http.patch<Sprint>(`/api/sprints/${id}/complete`, payload);
+  }
+
+  listInvitations() {
+    return this.http.get<InvitationResponse[]>('/api/invitations');
+  }
+
+  createInvitation(payload: CreateInvitationRequest) {
+    return this.http.post<void>('/api/invitations', payload);
+  }
+
+  acceptInvitation(payload: AcceptInvitationRequest) {
+    return this.http.post<LoginResponse>('/api/invitations/accept', payload);
   }
 
   listUsers(organizationId?: string) {

@@ -1,7 +1,7 @@
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { newDb } from 'pg-mem';
 import { DataSource, Repository } from 'typeorm';
 import { Role, SprintState, TaskCategory, TaskPriority, TaskStatus } from '@nx-temp/data';
@@ -26,6 +26,7 @@ import {
   UserEntity,
 } from './database/entities';
 import { EmailService } from './email/email.service';
+import { InvitationsService } from './invitations/invitations.service';
 import { OrganizationsService } from './organizations/organizations.service';
 import { TasksService } from './tasks/tasks.service';
 import { UsersService } from './users/users.service';
@@ -50,6 +51,7 @@ describe('API integration', () => {
   let auditService: AuditService;
   let aiService: AiService;
   let authService: AuthService;
+  let invitationsService: InvitationsService;
   let tasksService: TasksService;
   let chatService: ChatService;
 
@@ -124,6 +126,7 @@ describe('API integration', () => {
       invitationsRepository,
       passwordResetTokensRepository
     );
+    invitationsService = new InvitationsService(authService, emailService, invitationsRepository);
 
     new UsersService(usersRepository, membershipsRepository);
 
@@ -164,6 +167,32 @@ describe('API integration', () => {
     await expect(authService.login(ownerAuthUser.email, 'wrong-pass')).rejects.toBeInstanceOf(
       UnauthorizedException
     );
+  });
+
+  it('accepts invitation tokens once and creates the invited membership', async () => {
+    const { ownerAuthUser } = await seedHierarchy();
+    const token = await authService.createInviteToken(
+      ownerAuthUser.organizationId,
+      'new-viewer@acme.test',
+      Role.Viewer,
+      ownerAuthUser.id
+    );
+
+    const response = await authService.acceptInvitation(token, 'New Viewer', 'Password123!');
+
+    expect(response.user.email).toBe('new-viewer@acme.test');
+    expect(response.user.role).toBe(Role.Viewer);
+    await expect(
+      authService.acceptInvitation(token, 'New Viewer', 'Password123!')
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('blocks admins from inviting owners', async () => {
+    const { adminAuthUser } = await seedHierarchy();
+
+    await expect(
+      invitationsService.create(adminAuthUser, 'owner-two@acme.test', Role.Owner)
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('lets an owner see parent and child organization tasks', async () => {

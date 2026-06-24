@@ -1,5 +1,5 @@
 import { AuthenticatedUser } from '@nx-temp/auth';
-import { InvitationResponse, Permission } from '@nx-temp/data';
+import { InvitationResponse, Role } from '@nx-temp/data';
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
@@ -16,8 +16,11 @@ export class InvitationsService {
     private readonly invitationsRepo: Repository<InvitationEntity>
   ) {}
 
-  async create(requester: AuthenticatedUser, email: string, role: import('@nx-temp/data').Role): Promise<void> {
+  async create(requester: AuthenticatedUser, email: string, role: Role): Promise<void> {
     if (!requester.role) throw new ForbiddenException();
+    if (requester.role === Role.Admin && role === Role.Owner) {
+      throw new ForbiddenException('Admins cannot invite Owner accounts');
+    }
 
     const rawToken = await this.authService.createInviteToken(
       requester.organizationId,
