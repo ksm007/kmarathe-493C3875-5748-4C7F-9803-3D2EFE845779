@@ -65,6 +65,10 @@ export class CreateTaskDto implements CreateTaskRequest {
   storyPoints?: number | null;
 
   @IsOptional()
+  @IsString()
+  parentEpicId?: string | null;
+
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(20)
   @ValidateNested({ each: true })

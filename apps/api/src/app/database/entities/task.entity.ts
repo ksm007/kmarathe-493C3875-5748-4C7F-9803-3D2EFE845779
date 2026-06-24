@@ -34,6 +34,15 @@ export class TaskEntity extends BaseEntity {
   @Column({ type: 'int', nullable: true })
   storyPoints!: number | null;
 
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  parentEpicId!: string | null;
+
+  @ManyToOne(() => TaskEntity, { nullable: true, onDelete: 'SET NULL' })
+  parentEpic!: TaskEntity | null;
+
+  @OneToMany(() => TaskEntity, (task) => task.parentEpic)
+  childIssues!: TaskEntity[];
+
   @Column({ type: 'jsonb', default: () => "'[]'" })
   acceptanceCriteria!: Array<{
     id: string;

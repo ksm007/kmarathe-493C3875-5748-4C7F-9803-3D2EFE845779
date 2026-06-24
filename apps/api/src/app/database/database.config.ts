@@ -18,6 +18,7 @@ import { AiAdditions1720000000000 } from './migrations/1720000000000-ai-addition
 import { MultiOrgMembership1730000000000 } from './migrations/1730000000000-multi-org-membership';
 import { IssueWorkflowFields1740000000000 } from './migrations/1740000000000-issue-workflow-fields';
 import { AcceptanceCriteria1750000000000 } from './migrations/1750000000000-acceptance-criteria';
+import { EpicChildIssues1760000000000 } from './migrations/1760000000000-epic-child-issues';
 import { DataSourceOptions } from 'typeorm';
 
 export function buildDatabaseOptions(env: Pick<AppEnv, 'DATABASE_URL'>): DataSourceOptions {
@@ -47,6 +48,7 @@ export function buildDatabaseOptions(env: Pick<AppEnv, 'DATABASE_URL'>): DataSou
       MultiOrgMembership1730000000000,
       IssueWorkflowFields1740000000000,
       AcceptanceCriteria1750000000000,
+      EpicChildIssues1760000000000,
     ],
     synchronize: false,
     logging: false,

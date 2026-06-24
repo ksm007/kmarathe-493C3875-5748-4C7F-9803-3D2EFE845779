@@ -57,7 +57,12 @@ export class AiService {
   async syncTaskEmbedding(taskId: string) {
     const task = await this.tasksRepository.findOne({
       where: { id: taskId },
-      relations: { organization: true, createdBy: true, assignee: true },
+      relations: {
+        organization: true,
+        createdBy: true,
+        assignee: true,
+        parentEpic: true,
+      },
     });
 
     if (!task) {
@@ -79,6 +84,7 @@ export class AiService {
       status: task.status,
       priority: task.priority,
       storyPoints: task.storyPoints,
+      parentEpicTitle: task.parentEpic?.title ?? null,
       acceptanceCriteria: task.acceptanceCriteria ?? [],
       organizationName: task.organization?.name ?? '',
       createdByName: task.createdBy?.fullName ?? '',

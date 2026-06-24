@@ -34,6 +34,8 @@ export interface Task {
   category: TaskCategory;
   priority: TaskPriority;
   storyPoints: number | null;
+  parentEpicId: string | null;
+  parentEpicTitle: string | null;
   acceptanceCriteria: AcceptanceCriteriaItem[];
   position: number;
   organizationId: string;
@@ -58,6 +60,7 @@ export enum TaskActivityType {
   TaskCreated = 'task_created',
   TaskUpdated = 'task_updated',
   StatusChanged = 'status_changed',
+  EpicChanged = 'epic_changed',
   AcceptanceCriteriaChanged = 'acceptance_criteria_changed',
   Comment = 'comment',
 }

@@ -63,6 +63,25 @@ async function seed() {
     membershipsRepo.create({ userId: fieldAdmin.id, organizationId: childOrg.id, role: Role.Admin }),
   ]);
 
+  const operationsEpic = await tasksRepo.save(
+    tasksRepo.create({
+      title: 'Improve operations readiness',
+      description: 'Group work that prepares the team for safer, clearer operating rhythms.',
+      status: TaskStatus.Backlog,
+      issueType: IssueType.Epic,
+      category: TaskCategory.Ops,
+      priority: TaskPriority.Medium,
+      storyPoints: null,
+      acceptanceCriteria: [],
+      assigneeId: owner.id,
+      dueDate: null,
+      tags: ['ops', 'planning'],
+      position: 0,
+      organizationId: parentOrg.id,
+      createdById: owner.id,
+    }),
+  );
+
   await tasksRepo.save([
     tasksRepo.create({
       title: 'Review quarterly security checklist',
@@ -84,6 +103,7 @@ async function seed() {
           completed: false,
         },
       ],
+      parentEpicId: operationsEpic.id,
       assigneeId: admin.id,
       dueDate: new Date().toISOString().slice(0, 10),
       tags: ['security', 'compliance'],
@@ -106,6 +126,7 @@ async function seed() {
           completed: true,
         },
       ],
+      parentEpicId: operationsEpic.id,
       assigneeId: owner.id,
       dueDate: null,
       tags: ['reporting', 'leadership'],

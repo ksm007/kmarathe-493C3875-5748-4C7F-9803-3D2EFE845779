@@ -7,6 +7,7 @@ export interface RagTaskDocumentInput {
   status: string;
   priority: string;
   storyPoints: number | null;
+  parentEpicTitle: string | null;
   acceptanceCriteria: Array<{ text: string; completed: boolean }>;
   organizationName: string;
   createdByName: string;
@@ -35,6 +36,7 @@ export function buildTaskDocument(input: RagTaskDocumentInput): string {
     `[Status]: ${input.status}`,
     `[Priority]: ${input.priority}`,
     `[Story Points]: ${input.storyPoints ?? 'None'}`,
+    `[Epic]: ${input.parentEpicTitle ?? 'None'}`,
     `[Acceptance Criteria]: ${acceptanceCriteria}`,
     `[Organization]: ${input.organizationName}`,
     `[Creator]: ${input.createdByName}`,

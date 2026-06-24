@@ -63,6 +63,7 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
       [open]="modalOpen()"
       [task]="activeTask()"
       [users]="assignableUsers()"
+      [epicOptions]="epicOptions()"
       (closed)="closeModal()"
       (saved)="saveTask($event)"
     />
@@ -497,6 +498,7 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
               >
                 <th class="px-6 py-4 font-semibold">Task</th>
                 <th class="px-6 py-4 font-semibold">Type</th>
+                <th class="px-6 py-4 font-semibold">Epic</th>
                 <th class="px-6 py-4 font-semibold">Status</th>
                 <th class="px-6 py-4 font-semibold">Priority</th>
                 <th class="px-6 py-4 font-semibold">Points</th>
@@ -524,6 +526,9 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
                 </td>
                 <td class="px-6 py-4 text-on-surface-variant">
                   {{ task.issueType }}
+                </td>
+                <td class="px-6 py-4 text-on-surface-variant">
+                  {{ task.parentEpicTitle || '—' }}
                 </td>
                 <td class="px-6 py-4">
                   <span
@@ -668,6 +673,12 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
                       class="rounded bg-surface-container px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant"
                     >
                       {{ task.storyPoints }} pt
+                    </span>
+                    <span
+                      *ngIf="task.parentEpicTitle"
+                      class="rounded bg-surface-container px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant"
+                    >
+                      Epic: {{ task.parentEpicTitle }}
                     </span>
                     <span
                       class="rounded bg-surface-container px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant"
@@ -819,6 +830,12 @@ export class TasksPageComponent {
 
     return groups;
   });
+  readonly epicOptions = computed(() => {
+    const editingTaskId = this.activeTask()?.id;
+    return this.tasks().filter(
+      (task) => task.issueType === IssueType.Epic && task.id !== editingTaskId,
+    );
+  });
 
   constructor() {
     this.store.dispatch(
@@ -900,6 +917,7 @@ export class TasksPageComponent {
     category: TaskCategory;
     priority: TaskPriority;
     storyPoints: number | null;
+    parentEpicId: string | null;
     acceptanceCriteria: AcceptanceCriteriaItem[];
     status: TaskStatus;
     assigneeId: string | null;

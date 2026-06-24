@@ -54,6 +54,10 @@ import { ApiService } from '../../core/services/api.service';
               <dd class="mt-2 text-sm text-on-surface">{{ task()!.assigneeName || 'Unassigned' }}</dd>
             </div>
             <div class="rounded-xl bg-surface-container-low p-4">
+              <dt class="text-xs uppercase tracking-wider text-on-surface-variant">Epic</dt>
+              <dd class="mt-2 text-sm text-on-surface">{{ task()!.parentEpicTitle || 'None' }}</dd>
+            </div>
+            <div class="rounded-xl bg-surface-container-low p-4">
               <dt class="text-xs uppercase tracking-wider text-on-surface-variant">Due Date</dt>
               <dd class="mt-2 text-sm text-on-surface">{{ task()!.dueDate || 'None' }}</dd>
             </div>
@@ -251,6 +255,8 @@ export class TaskDetailPageComponent {
         return 'Updated';
       case TaskActivityType.StatusChanged:
         return 'Status';
+      case TaskActivityType.EpicChanged:
+        return 'Epic';
       case TaskActivityType.AcceptanceCriteriaChanged:
         return 'Criteria';
       case TaskActivityType.Comment:

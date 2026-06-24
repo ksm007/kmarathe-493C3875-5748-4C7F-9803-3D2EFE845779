@@ -150,6 +150,23 @@ import {
             <label class="flex flex-col gap-xs">
               <span
                 class="font-label-caps text-label-caps uppercase text-on-surface-variant"
+                >Epic</span
+              >
+              <select
+                class="taskcore-input"
+                formControlName="parentEpicId"
+                [disabled]="form.controls.issueType.value === IssueType.Epic"
+              >
+                <option value="">No epic</option>
+                <option *ngFor="let epic of epicOptions" [value]="epic.id">
+                  {{ epic.title }}
+                </option>
+              </select>
+            </label>
+
+            <label class="flex flex-col gap-xs">
+              <span
+                class="font-label-caps text-label-caps uppercase text-on-surface-variant"
                 >Assignee</span
               >
               <select class="taskcore-input" formControlName="assigneeId">
@@ -222,6 +239,7 @@ export class TaskModalComponent implements OnChanges {
   @Input() open = false;
   @Input() task: Task | null = null;
   @Input() users: UserSummary[] = [];
+  @Input() epicOptions: Task[] = [];
   @Input() duplicates: Array<{
     id: string;
     title: string;
@@ -235,6 +253,7 @@ export class TaskModalComponent implements OnChanges {
     category: TaskCategory;
     priority: TaskPriority;
     storyPoints: number | null;
+    parentEpicId: string | null;
     acceptanceCriteria: AcceptanceCriteriaItem[];
     status: TaskStatus;
     assigneeId: string | null;
@@ -249,6 +268,7 @@ export class TaskModalComponent implements OnChanges {
     category: TaskCategory;
     priority: TaskPriority;
     storyPoints: number | null;
+    parentEpicId: string | null;
     acceptanceCriteria: AcceptanceCriteriaItem[];
     status: TaskStatus;
     assigneeId: string | null;
@@ -258,6 +278,7 @@ export class TaskModalComponent implements OnChanges {
 
   readonly showDuplicateWarning = signal(false);
 
+  protected readonly IssueType = IssueType;
   readonly issueTypeOptions = Object.values(IssueType);
   readonly categoryOptions = Object.values(TaskCategory);
   readonly priorityOptions = Object.values(TaskPriority);
@@ -270,6 +291,7 @@ export class TaskModalComponent implements OnChanges {
     category: [TaskCategory.Work],
     priority: [TaskPriority.Medium],
     storyPoints: this.fb.control<number | null>(null),
+    parentEpicId: [''],
     status: [TaskStatus.Todo],
     assigneeId: [''],
     dueDate: [''],
@@ -296,6 +318,8 @@ export class TaskModalComponent implements OnChanges {
       description: rest.description || null,
       assigneeId: rest.assigneeId || null,
       dueDate: rest.dueDate || null,
+      parentEpicId:
+        rest.issueType === IssueType.Epic ? null : rest.parentEpicId || null,
       storyPoints:
         rest.storyPoints === null || rest.storyPoints === undefined
           ? null
@@ -317,6 +341,7 @@ export class TaskModalComponent implements OnChanges {
         category: this.task.category,
         priority: this.task.priority,
         storyPoints: this.task.storyPoints,
+        parentEpicId: this.task.parentEpicId ?? '',
         status: this.task.status,
         assigneeId: this.task.assigneeId ?? '',
         dueDate: this.task.dueDate ?? '',
@@ -335,6 +360,7 @@ export class TaskModalComponent implements OnChanges {
       category: TaskCategory.Work,
       priority: TaskPriority.Medium,
       storyPoints: null,
+      parentEpicId: '',
       status: TaskStatus.Todo,
       assigneeId: '',
       dueDate: '',

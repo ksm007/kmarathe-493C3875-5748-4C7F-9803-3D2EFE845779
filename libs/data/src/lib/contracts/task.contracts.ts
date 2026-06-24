@@ -27,6 +27,7 @@ export interface CreateTaskRequest {
   category: TaskCategory;
   priority: TaskPriority;
   storyPoints?: number | null;
+  parentEpicId?: string | null;
   acceptanceCriteria?: AcceptanceCriteriaInput[];
   status?: TaskStatus;
   organizationId?: string;
@@ -42,6 +43,7 @@ export interface UpdateTaskRequest {
   category?: TaskCategory;
   priority?: TaskPriority;
   storyPoints?: number | null;
+  parentEpicId?: string | null;
   acceptanceCriteria?: AcceptanceCriteriaInput[];
   status?: TaskStatus;
   assigneeId?: string | null;

@@ -87,6 +87,7 @@ export class TasksService {
       .leftJoinAndSelect('task.organization', 'organization')
       .leftJoinAndSelect('task.createdBy', 'createdBy')
       .leftJoinAndSelect('task.assignee', 'assignee')
+      .leftJoinAndSelect('task.parentEpic', 'parentEpic')
       .where('task.organizationId IN (:...organizationIds)', {
         organizationIds: query.organizationId
           ? [query.organizationId]
@@ -208,6 +209,12 @@ export class TasksService {
       organizationId,
       payload.assigneeId ?? null,
     );
+    const issueType = payload.issueType ?? IssueType.Task;
+    const parentEpicId = await this.resolveParentEpicId(
+      organizationId,
+      issueType,
+      payload.parentEpicId ?? null,
+    );
     const position = await this.tasksRepository.count({
       where: {
         organizationId,
@@ -221,8 +228,9 @@ export class TasksService {
       category: payload.category,
       priority: payload.priority ?? TaskPriority.Medium,
       status: payload.status ?? TaskStatus.Todo,
-      issueType: payload.issueType ?? IssueType.Task,
+      issueType,
       storyPoints: payload.storyPoints ?? null,
+      parentEpicId,
       acceptanceCriteria: this.normalizeAcceptanceCriteria(
         payload.acceptanceCriteria,
       ),
@@ -271,6 +279,7 @@ export class TasksService {
   ): Promise<Task> {
     const task = await this.getTaskForMutation(user, taskId, 'tasks.update');
     const previousStatus = task.status;
+    const previousParentEpicId = task.parentEpicId;
     const previousAcceptanceCriteria = task.acceptanceCriteria ?? [];
 
     if (payload.title !== undefined) {
@@ -300,6 +309,17 @@ export class TasksService {
     if (payload.acceptanceCriteria !== undefined) {
       task.acceptanceCriteria = this.normalizeAcceptanceCriteria(
         payload.acceptanceCriteria,
+      );
+    }
+
+    if (payload.issueType === IssueType.Epic) {
+      task.parentEpicId = null;
+    } else if (payload.parentEpicId !== undefined) {
+      task.parentEpicId = await this.resolveParentEpicId(
+        task.organizationId,
+        task.issueType,
+        payload.parentEpicId,
+        task.id,
       );
     }
 
@@ -344,6 +364,21 @@ export class TasksService {
         {
           from: previousStatus,
           to: task.status,
+        },
+      );
+    }
+
+    if (previousParentEpicId !== task.parentEpicId) {
+      await this.recordActivity(
+        task,
+        user,
+        TaskActivityType.EpicChanged,
+        task.parentEpicId
+          ? `Added to epic ${task.parentEpicId}`
+          : `Removed from epic`,
+        {
+          from: previousParentEpicId,
+          to: task.parentEpicId,
         },
       );
     }
@@ -412,7 +447,12 @@ export class TasksService {
     const ids = payload.tasks.map((task) => task.id);
     const tasks = await this.tasksRepository.find({
       where: { id: In(ids) },
-      relations: { organization: true, createdBy: true, assignee: true },
+      relations: {
+        organization: true,
+        createdBy: true,
+        assignee: true,
+        parentEpic: true,
+      },
     });
 
     if (tasks.length !== ids.length) {
@@ -669,6 +709,43 @@ export class TasksService {
     return assignee.id;
   }
 
+  private async resolveParentEpicId(
+    organizationId: string,
+    issueType: IssueType,
+    requestedParentEpicId?: string | null,
+    currentTaskId?: string,
+  ): Promise<string | null> {
+    if (!requestedParentEpicId) {
+      return null;
+    }
+
+    if (issueType === IssueType.Epic) {
+      throw new BadRequestException('Epics cannot belong to another epic');
+    }
+
+    if (requestedParentEpicId === currentTaskId) {
+      throw new BadRequestException('An issue cannot belong to itself');
+    }
+
+    const parentEpic = await this.tasksRepository.findOne({
+      where: { id: requestedParentEpicId },
+    });
+
+    if (!parentEpic) {
+      throw new BadRequestException('Parent epic not found');
+    }
+
+    if (parentEpic.organizationId !== organizationId) {
+      throw new ForbiddenException('Parent epic is outside this organization');
+    }
+
+    if (parentEpic.issueType !== IssueType.Epic) {
+      throw new BadRequestException('Parent issue must be an epic');
+    }
+
+    return parentEpic.id;
+  }
+
   private async getTaskForMutation(
     user: AuthenticatedUser,
     taskId: string,
@@ -739,7 +816,12 @@ export class TasksService {
   ): Promise<TaskEntity | null> {
     return this.tasksRepository.findOne({
       where: { id: taskId },
-      relations: { organization: true, createdBy: true, assignee: true },
+      relations: {
+        organization: true,
+        createdBy: true,
+        assignee: true,
+        parentEpic: true,
+      },
     });
   }
 
@@ -810,6 +892,8 @@ export class TasksService {
       category: task.category,
       priority: task.priority,
       storyPoints: task.storyPoints,
+      parentEpicId: task.parentEpicId,
+      parentEpicTitle: task.parentEpic?.title ?? null,
       acceptanceCriteria: task.acceptanceCriteria ?? [],
       position: task.position,
       organizationId: task.organizationId,

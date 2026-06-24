@@ -68,6 +68,10 @@ export class UpdateTaskDto implements UpdateTaskRequest {
   storyPoints?: number | null;
 
   @IsOptional()
+  @IsString()
+  parentEpicId?: string | null;
+
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(20)
   @ValidateNested({ each: true })
