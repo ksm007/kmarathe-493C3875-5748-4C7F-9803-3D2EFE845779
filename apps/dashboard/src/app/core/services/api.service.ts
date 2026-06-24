@@ -5,6 +5,8 @@ import {
   ConfirmPendingChatActionResponse,
   AuditLogEntry,
   ChatMessage,
+  CompleteSprintRequest,
+  CreateSprintRequest,
   CreateTaskRequest,
   CreateTeamMemberRequest,
   CurrentUser,
@@ -18,6 +20,7 @@ import {
   ReorderTasksRequest,
   Task,
   TaskQuery,
+  UpdateSprintRequest,
   UpdateTaskRequest,
   UserSummary,
 } from '@nx-temp/data';
@@ -88,6 +91,22 @@ export class ApiService {
     }
 
     return this.http.get<Sprint[]>('/api/sprints', { params });
+  }
+
+  createSprint(payload: CreateSprintRequest) {
+    return this.http.post<Sprint>('/api/sprints', payload);
+  }
+
+  updateSprint(id: string, payload: UpdateSprintRequest) {
+    return this.http.put<Sprint>(`/api/sprints/${id}`, payload);
+  }
+
+  startSprint(id: string) {
+    return this.http.patch<Sprint>(`/api/sprints/${id}/start`, {});
+  }
+
+  completeSprint(id: string, payload: CompleteSprintRequest) {
+    return this.http.patch<Sprint>(`/api/sprints/${id}/complete`, payload);
   }
 
   listUsers(organizationId?: string) {

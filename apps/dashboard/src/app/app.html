@@ -44,6 +44,15 @@
         AI Chat
       </a>
       <a
+        *ngIf="canViewAudit()"
+        routerLink="/sprints"
+        routerLinkActive="enterprise-nav-link-active"
+        class="enterprise-nav-link"
+      >
+        <span class="material-symbols-outlined">calendar_month</span>
+        Sprints
+      </a>
+      <a
         routerLink="/reports/standup"
         routerLinkActive="enterprise-nav-link-active"
         class="enterprise-nav-link"

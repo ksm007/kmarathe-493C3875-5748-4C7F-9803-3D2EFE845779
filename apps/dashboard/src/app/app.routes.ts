@@ -7,6 +7,7 @@ import { HeroPageComponent } from './features/hero/hero-page.component';
 import { LoginPageComponent } from './features/login/login-page.component';
 import { StandupReportPageComponent } from './features/reports/standup-report-page.component';
 import { SignupPageComponent } from './features/signup/signup-page.component';
+import { SprintsPageComponent } from './features/sprints/sprints-page.component';
 import { TaskDetailPageComponent } from './features/tasks/task-detail-page.component';
 import { TasksPageComponent } from './features/tasks/tasks-page.component';
 import { TeamPageComponent } from './features/team/team-page.component';
@@ -22,6 +23,11 @@ export const appRoutes: Route[] = [
     canActivate: [authGuard],
   },
   { path: 'tasks', component: TasksPageComponent, canActivate: [authGuard] },
+  {
+    path: 'sprints',
+    component: SprintsPageComponent,
+    canActivate: [authGuard, adminGuard],
+  },
   {
     path: 'team',
     component: TeamPageComponent,
