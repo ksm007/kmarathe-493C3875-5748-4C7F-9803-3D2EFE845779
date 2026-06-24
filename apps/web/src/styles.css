@@ -1,6 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import '@mantine/core/styles.css';
+@import '@mantine/notifications/styles.css';
 
 :root {
   color: #172033;
@@ -25,12 +24,48 @@ input {
   font: inherit;
 }
 
-@layer components {
-  .auth-input {
-    @apply h-11 w-full rounded-md border border-border bg-white px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60;
+.auth-page {
+  min-height: 100vh;
+  background:
+    linear-gradient(180deg, rgba(37, 99, 235, 0.08), rgba(37, 99, 235, 0)),
+    #f7f8fb;
+}
+
+.auth-shell {
+  min-height: calc(100vh - 48px);
+  overflow: hidden;
+}
+
+.auth-shell-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  min-height: calc(100vh - 48px);
+}
+
+.auth-panel {
+  min-height: calc(100vh - 48px);
+  padding: 40px;
+  color: #fff;
+  background: #102033;
+}
+
+.auth-feature {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+@media (max-width: 48em) {
+  .auth-shell-grid {
+    grid-template-columns: 1fr;
+    min-height: auto;
   }
 
-  .auth-label {
-    @apply text-sm font-medium text-foreground;
+  .auth-panel {
+    min-height: auto;
+    padding: 24px;
+  }
+
+  .auth-shell {
+    min-height: auto;
   }
 }
