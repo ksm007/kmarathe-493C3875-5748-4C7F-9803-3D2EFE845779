@@ -7,6 +7,7 @@ export interface RagTaskDocumentInput {
   status: string;
   priority: string;
   storyPoints: number | null;
+  acceptanceCriteria: Array<{ text: string; completed: boolean }>;
   organizationName: string;
   createdByName: string;
   assigneeName: string | null;
@@ -18,6 +19,12 @@ export interface RagTaskDocumentInput {
 export function buildTaskDocument(input: RagTaskDocumentInput): string {
   const activitySummary = input.activities.map((activity) => activity.message).join(' | ') || 'None';
   const tags = input.tags.length > 0 ? input.tags.join(', ') : 'None';
+  const acceptanceCriteria =
+    input.acceptanceCriteria.length > 0
+      ? input.acceptanceCriteria
+          .map((item) => `${item.completed ? '[x]' : '[ ]'} ${item.text}`)
+          .join(' | ')
+      : 'None';
 
   return [
     `[Task ID]: ${input.id}`,
@@ -28,6 +35,7 @@ export function buildTaskDocument(input: RagTaskDocumentInput): string {
     `[Status]: ${input.status}`,
     `[Priority]: ${input.priority}`,
     `[Story Points]: ${input.storyPoints ?? 'None'}`,
+    `[Acceptance Criteria]: ${acceptanceCriteria}`,
     `[Organization]: ${input.organizationName}`,
     `[Creator]: ${input.createdByName}`,
     `[Assignee]: ${input.assigneeName ?? 'Unassigned'}`,

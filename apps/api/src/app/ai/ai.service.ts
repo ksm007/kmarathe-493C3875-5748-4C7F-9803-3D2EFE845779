@@ -79,6 +79,7 @@ export class AiService {
       status: task.status,
       priority: task.priority,
       storyPoints: task.storyPoints,
+      acceptanceCriteria: task.acceptanceCriteria ?? [],
       organizationName: task.organization?.name ?? '',
       createdByName: task.createdBy?.fullName ?? '',
       assigneeName: task.assignee?.fullName ?? null,

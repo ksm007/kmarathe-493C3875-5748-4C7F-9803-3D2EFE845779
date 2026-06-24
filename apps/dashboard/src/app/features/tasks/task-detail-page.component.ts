@@ -2,7 +2,12 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { Role, TaskActivityType, TaskDetail } from '@nx-temp/data';
+import {
+  AcceptanceCriteriaItem,
+  Role,
+  TaskActivityType,
+  TaskDetail,
+} from '@nx-temp/data';
 import { Store } from '@ngrx/store';
 import { firstValueFrom } from 'rxjs';
 import { selectUser } from '../../core/store/auth/auth.reducer';
@@ -63,6 +68,54 @@ import { ApiService } from '../../core/services/api.service';
               <span *ngIf="task()!.tags.length === 0" class="text-sm text-on-surface-variant">No tags yet.</span>
             </div>
           </div>
+
+          <div class="mt-6">
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="font-label-lg text-on-surface">Acceptance Criteria</h2>
+              <span class="text-xs text-on-surface-variant">
+                {{ completedCriteriaCount() }} / {{ task()!.acceptanceCriteria.length }} complete
+              </span>
+            </div>
+
+            <div class="mt-3 space-y-2">
+              <label
+                *ngFor="let item of task()!.acceptanceCriteria"
+                class="flex items-start gap-3 rounded-xl border border-outline-variant bg-surface-container-low px-3 py-3 text-sm text-on-surface"
+              >
+                <input
+                  class="mt-1 h-4 w-4"
+                  type="checkbox"
+                  [checked]="item.completed"
+                  [disabled]="!canComment()"
+                  (change)="toggleCriteria(item, $any($event.target).checked)"
+                />
+                <span [class.line-through]="item.completed">{{ item.text }}</span>
+              </label>
+
+              <p *ngIf="task()!.acceptanceCriteria.length === 0" class="text-sm text-on-surface-variant">
+                No acceptance criteria yet.
+              </p>
+            </div>
+
+            <form
+              *ngIf="canComment()"
+              class="mt-4 flex flex-col gap-3 sm:flex-row"
+              [formGroup]="criteriaForm"
+              (ngSubmit)="addCriteria()"
+            >
+              <input
+                class="taskcore-input flex-1"
+                formControlName="text"
+                placeholder="Add a criterion"
+              />
+              <button
+                class="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary"
+                type="submit"
+              >
+                Add
+              </button>
+            </form>
+          </div>
         </article>
 
         <aside class="space-y-6">
@@ -114,9 +167,17 @@ export class TaskDetailPageComponent {
   readonly error = signal<string | null>(null);
   readonly user = this.store.selectSignal(selectUser);
   readonly canComment = computed(() => this.user()?.role !== Role.Viewer);
+  readonly completedCriteriaCount = computed(
+    () =>
+      this.task()?.acceptanceCriteria.filter((item) => item.completed).length ??
+      0,
+  );
 
   readonly commentForm = this.fb.nonNullable.group({
     message: ['', [Validators.required, Validators.maxLength(2000)]],
+  });
+  readonly criteriaForm = this.fb.nonNullable.group({
+    text: ['', [Validators.required, Validators.maxLength(240)]],
   });
 
   constructor() {
@@ -152,6 +213,36 @@ export class TaskDetailPageComponent {
     }
   }
 
+  async toggleCriteria(item: AcceptanceCriteriaItem, completed: boolean) {
+    const task = this.task();
+    if (!task || !this.canComment()) {
+      return;
+    }
+
+    const acceptanceCriteria = task.acceptanceCriteria.map((candidate) =>
+      candidate.id === item.id ? { ...candidate, completed } : candidate,
+    );
+    await this.updateAcceptanceCriteria(acceptanceCriteria);
+  }
+
+  async addCriteria() {
+    const task = this.task();
+    if (!task || this.criteriaForm.invalid || !this.canComment()) {
+      return;
+    }
+
+    const text = this.criteriaForm.getRawValue().text.trim();
+    if (!text) {
+      return;
+    }
+
+    await this.updateAcceptanceCriteria([
+      ...task.acceptanceCriteria,
+      { id: '', text, completed: false },
+    ]);
+    this.criteriaForm.reset({ text: '' });
+  }
+
   labelForActivity(type: TaskActivityType) {
     switch (type) {
       case TaskActivityType.TaskCreated:
@@ -160,8 +251,31 @@ export class TaskDetailPageComponent {
         return 'Updated';
       case TaskActivityType.StatusChanged:
         return 'Status';
+      case TaskActivityType.AcceptanceCriteriaChanged:
+        return 'Criteria';
       case TaskActivityType.Comment:
         return 'Comment';
+    }
+  }
+
+  private async updateAcceptanceCriteria(
+    acceptanceCriteria: AcceptanceCriteriaItem[],
+  ) {
+    const task = this.task();
+    if (!task) {
+      return;
+    }
+
+    try {
+      await firstValueFrom(
+        this.api.updateTask(task.id, {
+          acceptanceCriteria,
+        }),
+      );
+      const refreshed = await firstValueFrom(this.api.getTaskDetail(task.id));
+      this.task.set(refreshed ?? null);
+    } catch {
+      this.error.set('Unable to update acceptance criteria.');
     }
   }
 

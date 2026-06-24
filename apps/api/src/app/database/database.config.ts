@@ -17,6 +17,7 @@ import { InitialSchema1710000000000 } from './migrations/1710000000000-initial-s
 import { AiAdditions1720000000000 } from './migrations/1720000000000-ai-additions';
 import { MultiOrgMembership1730000000000 } from './migrations/1730000000000-multi-org-membership';
 import { IssueWorkflowFields1740000000000 } from './migrations/1740000000000-issue-workflow-fields';
+import { AcceptanceCriteria1750000000000 } from './migrations/1750000000000-acceptance-criteria';
 import { DataSourceOptions } from 'typeorm';
 
 export function buildDatabaseOptions(env: Pick<AppEnv, 'DATABASE_URL'>): DataSourceOptions {
@@ -45,6 +46,7 @@ export function buildDatabaseOptions(env: Pick<AppEnv, 'DATABASE_URL'>): DataSou
       AiAdditions1720000000000,
       MultiOrgMembership1730000000000,
       IssueWorkflowFields1740000000000,
+      AcceptanceCriteria1750000000000,
     ],
     synchronize: false,
     logging: false,

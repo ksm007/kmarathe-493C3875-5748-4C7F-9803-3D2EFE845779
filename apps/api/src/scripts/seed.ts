@@ -72,6 +72,18 @@ async function seed() {
       category: TaskCategory.Ops,
       priority: TaskPriority.High,
       storyPoints: 3,
+      acceptanceCriteria: [
+        {
+          id: 'seed-ac-security-1',
+          text: 'RBAC permissions reviewed for owner, admin, and viewer roles',
+          completed: false,
+        },
+        {
+          id: 'seed-ac-security-2',
+          text: 'Secrets rotation checklist is current',
+          completed: false,
+        },
+      ],
       assigneeId: admin.id,
       dueDate: new Date().toISOString().slice(0, 10),
       tags: ['security', 'compliance'],
@@ -87,6 +99,13 @@ async function seed() {
       category: TaskCategory.Work,
       priority: TaskPriority.Medium,
       storyPoints: 5,
+      acceptanceCriteria: [
+        {
+          id: 'seed-ac-summary-1',
+          text: 'Summary includes active work, blockers, and ownership',
+          completed: true,
+        },
+      ],
       assigneeId: owner.id,
       dueDate: null,
       tags: ['reporting', 'leadership'],
@@ -102,6 +121,13 @@ async function seed() {
       category: TaskCategory.Work,
       priority: TaskPriority.High,
       storyPoints: 2,
+      acceptanceCriteria: [
+        {
+          id: 'seed-ac-route-1',
+          text: 'Truck prep checklist is confirmed by field admin',
+          completed: false,
+        },
+      ],
       assigneeId: fieldAdmin.id,
       dueDate: null,
       tags: ['ops', 'field'],
@@ -117,6 +143,7 @@ async function seed() {
       category: TaskCategory.Personal,
       priority: TaskPriority.Low,
       storyPoints: null,
+      acceptanceCriteria: [],
       assigneeId: viewer.id,
       dueDate: null,
       tags: ['growth'],

@@ -1,5 +1,6 @@
 import {
   AddTaskCommentRequest,
+  AcceptanceCriteriaInput,
   IssueType,
   Permission,
   Role,
@@ -23,6 +24,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { randomUUID } from 'crypto';
 import { In, Repository } from 'typeorm';
 import { AiService } from '../ai/ai.service';
 import { AuditService } from '../audit/audit.service';
@@ -221,6 +223,9 @@ export class TasksService {
       status: payload.status ?? TaskStatus.Todo,
       issueType: payload.issueType ?? IssueType.Task,
       storyPoints: payload.storyPoints ?? null,
+      acceptanceCriteria: this.normalizeAcceptanceCriteria(
+        payload.acceptanceCriteria,
+      ),
       organizationId,
       createdById: user.id,
       assigneeId,
@@ -266,6 +271,7 @@ export class TasksService {
   ): Promise<Task> {
     const task = await this.getTaskForMutation(user, taskId, 'tasks.update');
     const previousStatus = task.status;
+    const previousAcceptanceCriteria = task.acceptanceCriteria ?? [];
 
     if (payload.title !== undefined) {
       task.title = payload.title;
@@ -289,6 +295,12 @@ export class TasksService {
 
     if (payload.storyPoints !== undefined) {
       task.storyPoints = payload.storyPoints;
+    }
+
+    if (payload.acceptanceCriteria !== undefined) {
+      task.acceptanceCriteria = this.normalizeAcceptanceCriteria(
+        payload.acceptanceCriteria,
+      );
     }
 
     if (payload.status !== undefined) {
@@ -332,6 +344,25 @@ export class TasksService {
         {
           from: previousStatus,
           to: task.status,
+        },
+      );
+    }
+
+    if (
+      payload.acceptanceCriteria !== undefined &&
+      JSON.stringify(previousAcceptanceCriteria) !==
+        JSON.stringify(task.acceptanceCriteria)
+    ) {
+      await this.recordActivity(
+        task,
+        user,
+        TaskActivityType.AcceptanceCriteriaChanged,
+        `Acceptance criteria updated for ${task.title}`,
+        {
+          count: task.acceptanceCriteria.length,
+          completedCount: task.acceptanceCriteria.filter(
+            (item) => item.completed,
+          ).length,
         },
       );
     }
@@ -729,6 +760,17 @@ export class TasksService {
     );
   }
 
+  private normalizeAcceptanceCriteria(items?: AcceptanceCriteriaInput[]) {
+    return (items ?? [])
+      .map((item) => ({
+        id: item.id?.trim() || randomUUID(),
+        text: item.text.trim(),
+        completed: Boolean(item.completed),
+      }))
+      .filter((item) => item.text.length > 0)
+      .slice(0, 20);
+  }
+
   private async recordActivity(
     task: TaskEntity,
     actor: AuthenticatedUser,
@@ -768,6 +810,7 @@ export class TasksService {
       category: task.category,
       priority: task.priority,
       storyPoints: task.storyPoints,
+      acceptanceCriteria: task.acceptanceCriteria ?? [],
       position: task.position,
       organizationId: task.organizationId,
       organizationName: task.organization?.name ?? '',

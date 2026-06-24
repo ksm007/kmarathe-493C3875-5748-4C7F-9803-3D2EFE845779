@@ -21,6 +21,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import {
+  AcceptanceCriteriaItem,
   IssueType,
   Role,
   Task,
@@ -899,6 +900,7 @@ export class TasksPageComponent {
     category: TaskCategory;
     priority: TaskPriority;
     storyPoints: number | null;
+    acceptanceCriteria: AcceptanceCriteriaItem[];
     status: TaskStatus;
     assigneeId: string | null;
     dueDate: string | null;

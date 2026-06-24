@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
+  AcceptanceCriteriaItem,
   IssueType,
   Task,
   TaskCategory,
@@ -184,6 +185,17 @@ import {
             />
           </label>
 
+          <label class="flex flex-col gap-xs">
+            <span
+              class="font-label-caps text-label-caps uppercase text-on-surface-variant"
+              >Acceptance Criteria</span
+            >
+            <textarea
+              class="taskcore-input min-h-24"
+              formControlName="acceptanceCriteriaText"
+            ></textarea>
+          </label>
+
           <div class="mt-sm flex justify-end gap-3">
             <button
               class="rounded-lg border border-outline-variant px-md py-sm text-body-sm text-on-surface transition hover:bg-surface-container-low"
@@ -223,6 +235,7 @@ export class TaskModalComponent implements OnChanges {
     category: TaskCategory;
     priority: TaskPriority;
     storyPoints: number | null;
+    acceptanceCriteria: AcceptanceCriteriaItem[];
     status: TaskStatus;
     assigneeId: string | null;
     dueDate: string | null;
@@ -236,6 +249,7 @@ export class TaskModalComponent implements OnChanges {
     category: TaskCategory;
     priority: TaskPriority;
     storyPoints: number | null;
+    acceptanceCriteria: AcceptanceCriteriaItem[];
     status: TaskStatus;
     assigneeId: string | null;
     dueDate: string | null;
@@ -260,6 +274,7 @@ export class TaskModalComponent implements OnChanges {
     assigneeId: [''],
     dueDate: [''],
     tagsText: [''],
+    acceptanceCriteriaText: [''],
   });
 
   ngOnChanges(changes: SimpleChanges) {
@@ -274,7 +289,8 @@ export class TaskModalComponent implements OnChanges {
       return;
     }
 
-    const { tagsText, ...rest } = this.form.getRawValue();
+    const { acceptanceCriteriaText, tagsText, ...rest } =
+      this.form.getRawValue();
     this.saved.emit({
       ...rest,
       description: rest.description || null,
@@ -288,6 +304,7 @@ export class TaskModalComponent implements OnChanges {
         .split(',')
         .map((tag) => tag.trim())
         .filter(Boolean),
+      acceptanceCriteria: this.parseAcceptanceCriteria(acceptanceCriteriaText),
     });
   }
 
@@ -304,6 +321,9 @@ export class TaskModalComponent implements OnChanges {
         assigneeId: this.task.assigneeId ?? '',
         dueDate: this.task.dueDate ?? '',
         tagsText: this.task.tags.join(', '),
+        acceptanceCriteriaText: this.task.acceptanceCriteria
+          .map((item) => item.text)
+          .join('\n'),
       });
       return;
     }
@@ -319,6 +339,27 @@ export class TaskModalComponent implements OnChanges {
       assigneeId: '',
       dueDate: '',
       tagsText: '',
+      acceptanceCriteriaText: '',
     });
+  }
+
+  private parseAcceptanceCriteria(value: string): AcceptanceCriteriaItem[] {
+    const existingByText = new Map(
+      (this.task?.acceptanceCriteria ?? []).map((item) => [item.text, item]),
+    );
+
+    return value
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 20)
+      .map((text) => {
+        const existing = existingByText.get(text);
+        return {
+          id: existing?.id ?? '',
+          text,
+          completed: existing?.completed ?? false,
+        };
+      });
   }
 }

@@ -34,6 +34,7 @@ export interface Task {
   category: TaskCategory;
   priority: TaskPriority;
   storyPoints: number | null;
+  acceptanceCriteria: AcceptanceCriteriaItem[];
   position: number;
   organizationId: string;
   organizationName: string;
@@ -47,10 +48,17 @@ export interface Task {
   updatedAt: string;
 }
 
+export interface AcceptanceCriteriaItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
 export enum TaskActivityType {
   TaskCreated = 'task_created',
   TaskUpdated = 'task_updated',
   StatusChanged = 'status_changed',
+  AcceptanceCriteriaChanged = 'acceptance_criteria_changed',
   Comment = 'comment',
 }
 

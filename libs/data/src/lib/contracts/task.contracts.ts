@@ -5,6 +5,12 @@ import {
   TaskStatus,
 } from '../models/task';
 
+export interface AcceptanceCriteriaInput {
+  id?: string;
+  text: string;
+  completed?: boolean;
+}
+
 export interface TaskQuery {
   status?: TaskStatus;
   category?: TaskCategory;
@@ -21,6 +27,7 @@ export interface CreateTaskRequest {
   category: TaskCategory;
   priority: TaskPriority;
   storyPoints?: number | null;
+  acceptanceCriteria?: AcceptanceCriteriaInput[];
   status?: TaskStatus;
   organizationId?: string;
   assigneeId?: string | null;
@@ -35,6 +42,7 @@ export interface UpdateTaskRequest {
   category?: TaskCategory;
   priority?: TaskPriority;
   storyPoints?: number | null;
+  acceptanceCriteria?: AcceptanceCriteriaInput[];
   status?: TaskStatus;
   assigneeId?: string | null;
   dueDate?: string | null;

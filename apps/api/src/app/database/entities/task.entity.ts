@@ -34,6 +34,13 @@ export class TaskEntity extends BaseEntity {
   @Column({ type: 'int', nullable: true })
   storyPoints!: number | null;
 
+  @Column({ type: 'jsonb', default: () => "'[]'" })
+  acceptanceCriteria!: Array<{
+    id: string;
+    text: string;
+    completed: boolean;
+  }>;
+
   @Column({ type: 'varchar', length: 36, nullable: true })
   assigneeId!: string | null;
 

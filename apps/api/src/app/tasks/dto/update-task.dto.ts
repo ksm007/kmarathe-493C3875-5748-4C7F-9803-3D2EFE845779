@@ -8,6 +8,7 @@ import {
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -16,7 +17,23 @@ import {
   MaxLength,
   Max,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+
+class AcceptanceCriteriaItemDto {
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @IsString()
+  @MaxLength(240)
+  text!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  completed?: boolean;
+}
 
 export class UpdateTaskDto implements UpdateTaskRequest {
   @IsOptional()
@@ -49,6 +66,13 @@ export class UpdateTaskDto implements UpdateTaskRequest {
   @Min(0)
   @Max(40)
   storyPoints?: number | null;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => AcceptanceCriteriaItemDto)
+  acceptanceCriteria?: AcceptanceCriteriaItemDto[];
 
   @IsOptional()
   @IsString()
