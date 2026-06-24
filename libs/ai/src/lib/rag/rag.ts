@@ -2,9 +2,11 @@ export interface RagTaskDocumentInput {
   id: string;
   title: string;
   description: string | null;
+  issueType: string;
   category: string;
   status: string;
   priority: string;
+  storyPoints: number | null;
   organizationName: string;
   createdByName: string;
   assigneeName: string | null;
@@ -21,9 +23,11 @@ export function buildTaskDocument(input: RagTaskDocumentInput): string {
     `[Task ID]: ${input.id}`,
     `[Title]: ${input.title}`,
     `[Description]: ${input.description ?? 'None'}`,
+    `[Issue Type]: ${input.issueType}`,
     `[Category]: ${input.category}`,
     `[Status]: ${input.status}`,
     `[Priority]: ${input.priority}`,
+    `[Story Points]: ${input.storyPoints ?? 'None'}`,
     `[Organization]: ${input.organizationName}`,
     `[Creator]: ${input.createdByName}`,
     `[Assignee]: ${input.assigneeName ?? 'Unassigned'}`,

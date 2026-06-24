@@ -1,5 +1,6 @@
 import {
   CreateTaskRequest,
+  IssueType,
   TaskCategory,
   TaskPriority,
   TaskStatus,
@@ -9,9 +10,12 @@ import {
   IsArray,
   IsDateString,
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
   MaxLength,
+  Max,
+  Min,
 } from 'class-validator';
 
 export class CreateTaskDto implements CreateTaskRequest {
@@ -32,6 +36,16 @@ export class CreateTaskDto implements CreateTaskRequest {
   @IsOptional()
   @IsEnum(TaskStatus)
   status?: TaskStatus;
+
+  @IsOptional()
+  @IsEnum(IssueType)
+  issueType?: IssueType;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(40)
+  storyPoints?: number | null;
 
   @IsOptional()
   @IsString()

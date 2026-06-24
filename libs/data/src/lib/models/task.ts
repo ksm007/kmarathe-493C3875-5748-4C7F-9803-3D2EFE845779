@@ -1,7 +1,16 @@
 export enum TaskStatus {
+  Backlog = 'backlog',
   Todo = 'todo',
   InProgress = 'in_progress',
+  InReview = 'in_review',
   Done = 'done',
+}
+
+export enum IssueType {
+  Task = 'task',
+  Bug = 'bug',
+  Story = 'story',
+  Epic = 'epic',
 }
 
 export enum TaskCategory {
@@ -21,8 +30,10 @@ export interface Task {
   title: string;
   description: string | null;
   status: TaskStatus;
+  issueType: IssueType;
   category: TaskCategory;
   priority: TaskPriority;
+  storyPoints: number | null;
   position: number;
   organizationId: string;
   organizationName: string;

@@ -159,11 +159,19 @@ function inferStatus(message: string): TaskStatus | undefined {
     return TaskStatus.Done;
   }
 
+  if (/\b(in review|reviewing|needs review|ready for review)\b/i.test(message)) {
+    return TaskStatus.InReview;
+  }
+
   if (/\b(start|in progress|working on|doing)\b/i.test(message)) {
     return TaskStatus.InProgress;
   }
 
-  if (/\b(todo|to do|backlog)\b/i.test(message)) {
+  if (/\b(backlog)\b/i.test(message)) {
+    return TaskStatus.Backlog;
+  }
+
+  if (/\b(todo|to do)\b/i.test(message)) {
     return TaskStatus.Todo;
   }
 

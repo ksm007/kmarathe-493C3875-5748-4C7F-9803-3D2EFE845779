@@ -1,5 +1,6 @@
 import {
   AddTaskCommentRequest,
+  IssueType,
   Permission,
   Role,
   Task,
@@ -218,6 +219,8 @@ export class TasksService {
       category: payload.category,
       priority: payload.priority ?? TaskPriority.Medium,
       status: payload.status ?? TaskStatus.Todo,
+      issueType: payload.issueType ?? IssueType.Task,
+      storyPoints: payload.storyPoints ?? null,
       organizationId,
       createdById: user.id,
       assigneeId,
@@ -278,6 +281,14 @@ export class TasksService {
 
     if (payload.priority !== undefined) {
       task.priority = payload.priority;
+    }
+
+    if (payload.issueType !== undefined) {
+      task.issueType = payload.issueType;
+    }
+
+    if (payload.storyPoints !== undefined) {
+      task.storyPoints = payload.storyPoints;
     }
 
     if (payload.status !== undefined) {
@@ -753,8 +764,10 @@ export class TasksService {
       title: task.title,
       description: task.description,
       status: task.status,
+      issueType: task.issueType,
       category: task.category,
       priority: task.priority,
+      storyPoints: task.storyPoints,
       position: task.position,
       organizationId: task.organizationId,
       organizationName: task.organization?.name ?? '',

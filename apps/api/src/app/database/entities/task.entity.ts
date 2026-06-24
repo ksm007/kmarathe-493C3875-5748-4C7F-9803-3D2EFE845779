@@ -1,4 +1,9 @@
-import { TaskCategory, TaskPriority, TaskStatus } from '@nx-temp/data';
+import {
+  IssueType,
+  TaskCategory,
+  TaskPriority,
+  TaskStatus,
+} from '@nx-temp/data';
 import { BaseEntity } from '../../common/entities/base.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { OrganizationEntity } from './organization.entity';
@@ -17,11 +22,17 @@ export class TaskEntity extends BaseEntity {
   @Column({ type: 'varchar', length: 32, default: TaskStatus.Todo })
   status!: TaskStatus;
 
+  @Column({ type: 'varchar', length: 32, default: IssueType.Task })
+  issueType!: IssueType;
+
   @Column({ type: 'varchar', length: 32 })
   category!: TaskCategory;
 
   @Column({ type: 'varchar', length: 32, default: TaskPriority.Medium })
   priority!: TaskPriority;
+
+  @Column({ type: 'int', nullable: true })
+  storyPoints!: number | null;
 
   @Column({ type: 'varchar', length: 36, nullable: true })
   assigneeId!: string | null;

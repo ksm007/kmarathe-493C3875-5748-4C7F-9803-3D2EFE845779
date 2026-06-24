@@ -1,6 +1,12 @@
 import 'reflect-metadata';
 import * as bcrypt from 'bcrypt';
-import { TaskCategory, TaskPriority, TaskStatus, Role } from '@nx-temp/data';
+import {
+  IssueType,
+  Role,
+  TaskCategory,
+  TaskPriority,
+  TaskStatus,
+} from '@nx-temp/data';
 import { apiDataSource } from '../app/database/data-source';
 import {
   MembershipEntity,
@@ -62,8 +68,10 @@ async function seed() {
       title: 'Review quarterly security checklist',
       description: 'Validate RBAC, secrets rotation, and vendor access.',
       status: TaskStatus.Todo,
+      issueType: IssueType.Task,
       category: TaskCategory.Ops,
       priority: TaskPriority.High,
+      storyPoints: 3,
       assigneeId: admin.id,
       dueDate: new Date().toISOString().slice(0, 10),
       tags: ['security', 'compliance'],
@@ -75,8 +83,10 @@ async function seed() {
       title: 'Prepare executive task summary',
       description: 'Summarize key workstream status for leadership.',
       status: TaskStatus.InProgress,
+      issueType: IssueType.Story,
       category: TaskCategory.Work,
       priority: TaskPriority.Medium,
+      storyPoints: 5,
       assigneeId: owner.id,
       dueDate: null,
       tags: ['reporting', 'leadership'],
@@ -87,9 +97,11 @@ async function seed() {
     tasksRepo.create({
       title: 'Finish route readiness checklist',
       description: 'Confirm the field team has completed truck prep.',
-      status: TaskStatus.Todo,
+      status: TaskStatus.InReview,
+      issueType: IssueType.Bug,
       category: TaskCategory.Work,
       priority: TaskPriority.High,
+      storyPoints: 2,
       assigneeId: fieldAdmin.id,
       dueDate: null,
       tags: ['ops', 'field'],
@@ -101,8 +113,10 @@ async function seed() {
       title: 'Update personal development plan',
       description: 'Review training goals for the next quarter.',
       status: TaskStatus.Done,
+      issueType: IssueType.Task,
       category: TaskCategory.Personal,
       priority: TaskPriority.Low,
+      storyPoints: null,
       assigneeId: viewer.id,
       dueDate: null,
       tags: ['growth'],

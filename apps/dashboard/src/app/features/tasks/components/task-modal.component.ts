@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
+  IssueType,
   Task,
   TaskCategory,
   TaskPriority,
@@ -80,7 +81,19 @@ import {
             ></textarea>
           </label>
 
-          <div class="grid gap-md md:grid-cols-3">
+          <div class="grid gap-md md:grid-cols-4">
+            <label class="flex flex-col gap-xs">
+              <span
+                class="font-label-caps text-label-caps uppercase text-on-surface-variant"
+                >Issue Type</span
+              >
+              <select class="taskcore-input" formControlName="issueType">
+                <option *ngFor="let option of issueTypeOptions" [value]="option">
+                  {{ option }}
+                </option>
+              </select>
+            </label>
+
             <label class="flex flex-col gap-xs">
               <span
                 class="font-label-caps text-label-caps uppercase text-on-surface-variant"
@@ -119,6 +132,20 @@ import {
           </div>
 
           <div class="grid gap-md md:grid-cols-2">
+            <label class="flex flex-col gap-xs">
+              <span
+                class="font-label-caps text-label-caps uppercase text-on-surface-variant"
+                >Story Points</span
+              >
+              <input
+                class="taskcore-input"
+                formControlName="storyPoints"
+                min="0"
+                max="40"
+                type="number"
+              />
+            </label>
+
             <label class="flex flex-col gap-xs">
               <span
                 class="font-label-caps text-label-caps uppercase text-on-surface-variant"
@@ -192,8 +219,10 @@ export class TaskModalComponent implements OnChanges {
   @Output() saved = new EventEmitter<{
     title: string;
     description: string | null;
+    issueType: IssueType;
     category: TaskCategory;
     priority: TaskPriority;
+    storyPoints: number | null;
     status: TaskStatus;
     assigneeId: string | null;
     dueDate: string | null;
@@ -203,8 +232,10 @@ export class TaskModalComponent implements OnChanges {
   @Output() forceSave = new EventEmitter<{
     title: string;
     description: string | null;
+    issueType: IssueType;
     category: TaskCategory;
     priority: TaskPriority;
+    storyPoints: number | null;
     status: TaskStatus;
     assigneeId: string | null;
     dueDate: string | null;
@@ -213,6 +244,7 @@ export class TaskModalComponent implements OnChanges {
 
   readonly showDuplicateWarning = signal(false);
 
+  readonly issueTypeOptions = Object.values(IssueType);
   readonly categoryOptions = Object.values(TaskCategory);
   readonly priorityOptions = Object.values(TaskPriority);
   readonly statusOptions = Object.values(TaskStatus);
@@ -220,8 +252,10 @@ export class TaskModalComponent implements OnChanges {
   readonly form = this.fb.nonNullable.group({
     title: ['', [Validators.required, Validators.maxLength(160)]],
     description: [''],
+    issueType: [IssueType.Task],
     category: [TaskCategory.Work],
     priority: [TaskPriority.Medium],
+    storyPoints: this.fb.control<number | null>(null),
     status: [TaskStatus.Todo],
     assigneeId: [''],
     dueDate: [''],
@@ -246,6 +280,10 @@ export class TaskModalComponent implements OnChanges {
       description: rest.description || null,
       assigneeId: rest.assigneeId || null,
       dueDate: rest.dueDate || null,
+      storyPoints:
+        rest.storyPoints === null || rest.storyPoints === undefined
+          ? null
+          : Number(rest.storyPoints),
       tags: tagsText
         .split(',')
         .map((tag) => tag.trim())
@@ -258,8 +296,10 @@ export class TaskModalComponent implements OnChanges {
       this.form.reset({
         title: this.task.title,
         description: this.task.description ?? '',
+        issueType: this.task.issueType,
         category: this.task.category,
         priority: this.task.priority,
+        storyPoints: this.task.storyPoints,
         status: this.task.status,
         assigneeId: this.task.assigneeId ?? '',
         dueDate: this.task.dueDate ?? '',
@@ -271,8 +311,10 @@ export class TaskModalComponent implements OnChanges {
     this.form.reset({
       title: '',
       description: '',
+      issueType: IssueType.Task,
       category: TaskCategory.Work,
       priority: TaskPriority.Medium,
+      storyPoints: null,
       status: TaskStatus.Todo,
       assigneeId: '',
       dueDate: '',

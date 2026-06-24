@@ -1,4 +1,9 @@
-import { TaskCategory, TaskPriority, TaskStatus } from '../models/task';
+import {
+  IssueType,
+  TaskCategory,
+  TaskPriority,
+  TaskStatus,
+} from '../models/task';
 
 export interface TaskQuery {
   status?: TaskStatus;
@@ -12,8 +17,10 @@ export interface TaskQuery {
 export interface CreateTaskRequest {
   title: string;
   description?: string | null;
+  issueType?: IssueType;
   category: TaskCategory;
   priority: TaskPriority;
+  storyPoints?: number | null;
   status?: TaskStatus;
   organizationId?: string;
   assigneeId?: string | null;
@@ -24,8 +31,10 @@ export interface CreateTaskRequest {
 export interface UpdateTaskRequest {
   title?: string;
   description?: string | null;
+  issueType?: IssueType;
   category?: TaskCategory;
   priority?: TaskPriority;
+  storyPoints?: number | null;
   status?: TaskStatus;
   assigneeId?: string | null;
   dueDate?: string | null;

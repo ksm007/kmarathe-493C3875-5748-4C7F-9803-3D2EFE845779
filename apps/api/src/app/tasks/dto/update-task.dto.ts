@@ -1,12 +1,21 @@
-import { TaskCategory, TaskPriority, TaskStatus, UpdateTaskRequest } from '@nx-temp/data';
+import {
+  IssueType,
+  TaskCategory,
+  TaskPriority,
+  TaskStatus,
+  UpdateTaskRequest,
+} from '@nx-temp/data';
 import {
   ArrayMaxSize,
   IsArray,
   IsDateString,
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
   MaxLength,
+  Max,
+  Min,
 } from 'class-validator';
 
 export class UpdateTaskDto implements UpdateTaskRequest {
@@ -30,6 +39,16 @@ export class UpdateTaskDto implements UpdateTaskRequest {
   @IsOptional()
   @IsEnum(TaskStatus)
   status?: TaskStatus;
+
+  @IsOptional()
+  @IsEnum(IssueType)
+  issueType?: IssueType;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(40)
+  storyPoints?: number | null;
 
   @IsOptional()
   @IsString()

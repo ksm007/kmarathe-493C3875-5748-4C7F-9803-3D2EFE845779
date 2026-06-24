@@ -21,6 +21,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import {
+  IssueType,
   Role,
   Task,
   TaskCategory,
@@ -232,16 +233,9 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
               class="flex h-3 overflow-hidden rounded-full bg-surface-container-highest"
             >
               <div
-                class="bg-[#b0895c]"
-                [style.width.%]="statusWidth(TaskStatus.Todo)"
-              ></div>
-              <div
-                class="bg-secondary"
-                [style.width.%]="statusWidth(TaskStatus.InProgress)"
-              ></div>
-              <div
-                class="bg-emerald-600"
-                [style.width.%]="statusWidth(TaskStatus.Done)"
+                *ngFor="let column of columns"
+                [style.backgroundColor]="column.color"
+                [style.width.%]="statusWidth(column.status)"
               ></div>
             </div>
           </div>
@@ -313,7 +307,7 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
           >
             <div class="mb-4 flex items-center justify-between">
               <h2 class="font-label-lg text-label-lg text-on-surface-variant">
-                To Do
+                Backlog
               </h2>
               <div
                 class="flex h-10 w-10 items-center justify-center rounded-lg bg-[#ffedd5] text-[#9a3412]"
@@ -322,10 +316,10 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
               </div>
             </div>
             <span class="font-display text-display text-on-background">{{
-              groupedTasks().todo.length
+              groupedTasks()[TaskStatus.Backlog].length
             }}</span>
             <p class="mt-2 font-body-sm text-body-sm text-outline">
-              Pending next action
+              Ready for planning
             </p>
           </div>
 
@@ -343,7 +337,7 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
               </div>
             </div>
             <span class="font-display text-display text-on-background">{{
-              groupedTasks().in_progress.length
+              groupedTasks()[TaskStatus.InProgress].length
             }}</span>
             <p class="mt-2 font-body-sm text-body-sm text-outline">
               Currently being worked
@@ -355,7 +349,7 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
           >
             <div class="mb-4 flex items-center justify-between">
               <h2 class="font-label-lg text-label-lg text-on-surface-variant">
-                Done
+                In Review
               </h2>
               <div
                 class="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"
@@ -364,10 +358,10 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
               </div>
             </div>
             <span class="font-display text-display text-on-background">{{
-              groupedTasks().done.length
+              groupedTasks()[TaskStatus.InReview].length
             }}</span>
             <p class="mt-2 font-body-sm text-body-sm text-outline">
-              Completed items
+              Waiting on review
             </p>
           </div>
         </div>
@@ -501,8 +495,10 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
                 class="border-b border-outline-variant bg-surface-container-low font-label-lg text-label-lg text-on-surface-variant"
               >
                 <th class="px-6 py-4 font-semibold">Task</th>
+                <th class="px-6 py-4 font-semibold">Type</th>
                 <th class="px-6 py-4 font-semibold">Status</th>
                 <th class="px-6 py-4 font-semibold">Priority</th>
+                <th class="px-6 py-4 font-semibold">Points</th>
                 <th class="px-6 py-4 font-semibold">Category</th>
                 <th class="px-6 py-4 font-semibold">Updated</th>
                 <th class="px-6 py-4 text-right font-semibold">Actions</th>
@@ -525,6 +521,9 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
                     </p>
                   </div>
                 </td>
+                <td class="px-6 py-4 text-on-surface-variant">
+                  {{ task.issueType }}
+                </td>
                 <td class="px-6 py-4">
                   <span
                     class="rounded-full bg-surface-container px-2.5 py-1 text-xs font-medium text-on-surface-variant"
@@ -546,6 +545,9 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
                   >
                     {{ task.priority }}
                   </span>
+                </td>
+                <td class="px-6 py-4 text-on-surface-variant">
+                  {{ task.storyPoints ?? '—' }}
                 </td>
                 <td class="px-6 py-4 text-on-surface-variant">
                   {{ task.category }}
@@ -654,6 +656,17 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
                       [class.text-primary]="task.priority === 'low'"
                     >
                       {{ task.priority }}
+                    </span>
+                    <span
+                      class="rounded bg-surface-container px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant"
+                    >
+                      {{ task.issueType }}
+                    </span>
+                    <span
+                      *ngIf="task.storyPoints !== null"
+                      class="rounded bg-surface-container px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant"
+                    >
+                      {{ task.storyPoints }} pt
                     </span>
                     <span
                       class="rounded bg-surface-container px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant"
@@ -786,18 +799,18 @@ export class TasksPageComponent {
   });
 
   readonly columns = [
-    { status: TaskStatus.Todo, label: 'To Do' },
-    { status: TaskStatus.InProgress, label: 'In Progress' },
-    { status: TaskStatus.Done, label: 'Done' },
+    { status: TaskStatus.Backlog, label: 'Backlog', color: '#7c5f46' },
+    { status: TaskStatus.Todo, label: 'To Do', color: '#b0895c' },
+    { status: TaskStatus.InProgress, label: 'In Progress', color: '#004ac6' },
+    { status: TaskStatus.InReview, label: 'In Review', color: '#7c3aed' },
+    { status: TaskStatus.Done, label: 'Done', color: '#059669' },
   ] as const;
   readonly columnIds = this.columns.map(({ status }) => status);
 
   readonly groupedTasks = computed(() => {
-    const groups = {
-      [TaskStatus.Todo]: [] as Task[],
-      [TaskStatus.InProgress]: [] as Task[],
-      [TaskStatus.Done]: [] as Task[],
-    };
+    const groups = Object.fromEntries(
+      this.columns.map((column) => [column.status, [] as Task[]]),
+    ) as Record<TaskStatus, Task[]>;
 
     for (const task of this.tasks()) {
       groups[task.status].push(task);
@@ -882,8 +895,10 @@ export class TasksPageComponent {
   saveTask(payload: {
     title: string;
     description: string | null;
+    issueType: IssueType;
     category: TaskCategory;
     priority: TaskPriority;
+    storyPoints: number | null;
     status: TaskStatus;
     assigneeId: string | null;
     dueDate: string | null;
@@ -1019,14 +1034,9 @@ export class TasksPageComponent {
   }
 
   statusLabel(status: TaskStatus) {
-    switch (status) {
-      case TaskStatus.Todo:
-        return 'To Do';
-      case TaskStatus.InProgress:
-        return 'In Progress';
-      case TaskStatus.Done:
-        return 'Done';
-    }
+    return (
+      this.columns.find((column) => column.status === status)?.label ?? status
+    );
   }
 
   relativeTimestamp(value: string) {
@@ -1046,38 +1056,17 @@ export class TasksPageComponent {
   chartBars() {
     const total = this.tasks().length || 1;
 
-    return [
-      {
-        status: TaskStatus.Todo,
-        label: 'To Do',
-        count: this.groupedTasks()[TaskStatus.Todo].length,
-        percent: Math.round(
-          (this.groupedTasks()[TaskStatus.Todo].length / total) * 100,
-        ),
-        height: this.statusWidth(TaskStatus.Todo),
-        color: '#b0895c',
-      },
-      {
-        status: TaskStatus.InProgress,
-        label: 'In Progress',
-        count: this.groupedTasks()[TaskStatus.InProgress].length,
-        percent: Math.round(
-          (this.groupedTasks()[TaskStatus.InProgress].length / total) * 100,
-        ),
-        height: this.statusWidth(TaskStatus.InProgress),
-        color: '#004ac6',
-      },
-      {
-        status: TaskStatus.Done,
-        label: 'Done',
-        count: this.groupedTasks()[TaskStatus.Done].length,
-        percent: Math.round(
-          (this.groupedTasks()[TaskStatus.Done].length / total) * 100,
-        ),
-        height: this.statusWidth(TaskStatus.Done),
-        color: '#059669',
-      },
-    ];
+    return this.columns.map((column) => {
+      const count = this.groupedTasks()[column.status].length;
+      return {
+        status: column.status,
+        label: column.label,
+        count,
+        percent: Math.round((count / total) * 100),
+        height: this.statusWidth(column.status),
+        color: column.color,
+      };
+    });
   }
 
   trackByStatus(_index: number, column: { status: TaskStatus }) {
