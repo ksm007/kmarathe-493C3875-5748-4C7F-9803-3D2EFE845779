@@ -11,6 +11,8 @@ import {
   LoginRequest,
   LoginResponse,
   RegisterRequest,
+  Sprint,
+  SprintQuery,
   TaskActivity,
   TaskDetail,
   ReorderTasksRequest,
@@ -75,6 +77,17 @@ export class ApiService {
 
   reorderTasks(payload: ReorderTasksRequest) {
     return this.http.patch<Task[]>('/api/tasks/reorder', payload);
+  }
+
+  listSprints(query: SprintQuery = {}) {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value != null && value !== '') {
+        params = params.set(key, String(value));
+      }
+    }
+
+    return this.http.get<Sprint[]>('/api/sprints', { params });
   }
 
   listUsers(organizationId?: string) {

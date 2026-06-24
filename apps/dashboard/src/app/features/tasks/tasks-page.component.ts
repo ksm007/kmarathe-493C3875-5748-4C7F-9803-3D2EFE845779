@@ -24,6 +24,8 @@ import {
   AcceptanceCriteriaItem,
   IssueType,
   Role,
+  Sprint,
+  SprintState,
   Task,
   TaskCategory,
   TaskPriority,
@@ -64,6 +66,7 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
       [task]="activeTask()"
       [users]="assignableUsers()"
       [epicOptions]="epicOptions()"
+      [sprintOptions]="assignableSprints()"
       (closed)="closeModal()"
       (saved)="saveTask($event)"
     />
@@ -186,6 +189,36 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
                     [value]="category"
                   >
                     {{ category }}
+                  </option>
+                </select>
+                <span
+                  class="material-symbols-outlined pointer-events-none absolute right-3 top-2.5 text-on-surface-variant text-[20px]"
+                  >arrow_drop_down</span
+                >
+              </div>
+            </label>
+
+            <label class="flex min-w-[180px] flex-1 flex-col gap-1.5">
+              <span
+                class="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant"
+                >Sprint</span
+              >
+              <div class="relative">
+                <span
+                  class="material-symbols-outlined absolute left-3 top-2.5 text-on-surface-variant text-[20px]"
+                  >calendar_month</span
+                >
+                <select
+                  class="taskcore-input appearance-none pl-10"
+                  formControlName="sprintId"
+                >
+                  <option value="">All</option>
+                  <option value="backlog">Backlog</option>
+                  <option
+                    *ngFor="let sprint of assignableSprints()"
+                    [value]="sprint.id"
+                  >
+                    {{ sprint.name }}
                   </option>
                 </select>
                 <span
@@ -499,6 +532,7 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
                 <th class="px-6 py-4 font-semibold">Task</th>
                 <th class="px-6 py-4 font-semibold">Type</th>
                 <th class="px-6 py-4 font-semibold">Epic</th>
+                <th class="px-6 py-4 font-semibold">Sprint</th>
                 <th class="px-6 py-4 font-semibold">Status</th>
                 <th class="px-6 py-4 font-semibold">Priority</th>
                 <th class="px-6 py-4 font-semibold">Points</th>
@@ -529,6 +563,9 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
                 </td>
                 <td class="px-6 py-4 text-on-surface-variant">
                   {{ task.parentEpicTitle || '—' }}
+                </td>
+                <td class="px-6 py-4 text-on-surface-variant">
+                  {{ task.sprintName || 'Backlog' }}
                 </td>
                 <td class="px-6 py-4">
                   <span
@@ -683,6 +720,11 @@ type TaskViewMode = 'board' | 'list' | 'analytics';
                     <span
                       class="rounded bg-surface-container px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant"
                     >
+                      {{ task.sprintName || 'Backlog' }}
+                    </span>
+                    <span
+                      class="rounded bg-surface-container px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant"
+                    >
                       {{ task.category }}
                     </span>
                   </div>
@@ -803,10 +845,12 @@ export class TasksPageComponent {
   readonly activeTask = signal<Task | null>(null);
   readonly viewMode = signal<TaskViewMode>('board');
   readonly assignableUsers = signal<UserSummary[]>([]);
+  readonly sprints = signal<Sprint[]>([]);
 
   readonly filtersForm = this.fb.nonNullable.group({
     search: [''],
     category: [''],
+    sprintId: [''],
     sortBy: ['position'],
   });
 
@@ -836,6 +880,9 @@ export class TasksPageComponent {
       (task) => task.issueType === IssueType.Epic && task.id !== editingTaskId,
     );
   });
+  readonly assignableSprints = computed(() =>
+    this.sprints().filter((sprint) => sprint.state !== SprintState.Completed),
+  );
 
   constructor() {
     this.store.dispatch(
@@ -846,6 +893,12 @@ export class TasksPageComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((users) => {
         this.assignableUsers.set(users);
+      });
+    this.api
+      .listSprints()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((sprints) => {
+        this.sprints.set(sprints);
       });
 
     this.filtersForm.valueChanges
@@ -859,6 +912,7 @@ export class TasksPageComponent {
               category: (value.category || undefined) as
                 | TaskCategory
                 | undefined,
+              sprintId: value.sprintId || undefined,
               sortBy: (value.sortBy || 'position') as
                 | 'position'
                 | 'updatedAt'
@@ -879,6 +933,7 @@ export class TasksPageComponent {
     this.filtersForm.setValue({
       search: '',
       category: '',
+      sprintId: '',
       sortBy: 'position',
     });
   }
@@ -917,6 +972,7 @@ export class TasksPageComponent {
     category: TaskCategory;
     priority: TaskPriority;
     storyPoints: number | null;
+    sprintId: string | null;
     parentEpicId: string | null;
     acceptanceCriteria: AcceptanceCriteriaItem[];
     status: TaskStatus;

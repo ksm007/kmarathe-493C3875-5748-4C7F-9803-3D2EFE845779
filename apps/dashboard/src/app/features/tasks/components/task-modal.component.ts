@@ -14,6 +14,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
   AcceptanceCriteriaItem,
   IssueType,
+  Sprint,
   Task,
   TaskCategory,
   TaskPriority,
@@ -167,6 +168,23 @@ import {
             <label class="flex flex-col gap-xs">
               <span
                 class="font-label-caps text-label-caps uppercase text-on-surface-variant"
+                >Sprint</span
+              >
+              <select
+                class="taskcore-input"
+                formControlName="sprintId"
+                [disabled]="form.controls.issueType.value === IssueType.Epic"
+              >
+                <option value="">Backlog</option>
+                <option *ngFor="let sprint of sprintOptions" [value]="sprint.id">
+                  {{ sprint.name }} - {{ sprint.state }}
+                </option>
+              </select>
+            </label>
+
+            <label class="flex flex-col gap-xs">
+              <span
+                class="font-label-caps text-label-caps uppercase text-on-surface-variant"
                 >Assignee</span
               >
               <select class="taskcore-input" formControlName="assigneeId">
@@ -240,6 +258,7 @@ export class TaskModalComponent implements OnChanges {
   @Input() task: Task | null = null;
   @Input() users: UserSummary[] = [];
   @Input() epicOptions: Task[] = [];
+  @Input() sprintOptions: Sprint[] = [];
   @Input() duplicates: Array<{
     id: string;
     title: string;
@@ -253,6 +272,7 @@ export class TaskModalComponent implements OnChanges {
     category: TaskCategory;
     priority: TaskPriority;
     storyPoints: number | null;
+    sprintId: string | null;
     parentEpicId: string | null;
     acceptanceCriteria: AcceptanceCriteriaItem[];
     status: TaskStatus;
@@ -268,6 +288,7 @@ export class TaskModalComponent implements OnChanges {
     category: TaskCategory;
     priority: TaskPriority;
     storyPoints: number | null;
+    sprintId: string | null;
     parentEpicId: string | null;
     acceptanceCriteria: AcceptanceCriteriaItem[];
     status: TaskStatus;
@@ -291,6 +312,7 @@ export class TaskModalComponent implements OnChanges {
     category: [TaskCategory.Work],
     priority: [TaskPriority.Medium],
     storyPoints: this.fb.control<number | null>(null),
+    sprintId: [''],
     parentEpicId: [''],
     status: [TaskStatus.Todo],
     assigneeId: [''],
@@ -318,6 +340,8 @@ export class TaskModalComponent implements OnChanges {
       description: rest.description || null,
       assigneeId: rest.assigneeId || null,
       dueDate: rest.dueDate || null,
+      sprintId:
+        rest.issueType === IssueType.Epic ? null : rest.sprintId || null,
       parentEpicId:
         rest.issueType === IssueType.Epic ? null : rest.parentEpicId || null,
       storyPoints:
@@ -341,6 +365,7 @@ export class TaskModalComponent implements OnChanges {
         category: this.task.category,
         priority: this.task.priority,
         storyPoints: this.task.storyPoints,
+        sprintId: this.task.sprintId ?? '',
         parentEpicId: this.task.parentEpicId ?? '',
         status: this.task.status,
         assigneeId: this.task.assigneeId ?? '',
@@ -360,6 +385,7 @@ export class TaskModalComponent implements OnChanges {
       category: TaskCategory.Work,
       priority: TaskPriority.Medium,
       storyPoints: null,
+      sprintId: '',
       parentEpicId: '',
       status: TaskStatus.Todo,
       assigneeId: '',

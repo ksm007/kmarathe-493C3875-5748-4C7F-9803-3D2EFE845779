@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { newDb } from 'pg-mem';
 import { DataSource, Repository } from 'typeorm';
-import { Role, TaskCategory, TaskPriority, TaskStatus } from '@nx-temp/data';
+import { Role, SprintState, TaskCategory, TaskPriority, TaskStatus } from '@nx-temp/data';
 import { AiService } from './ai/ai.service';
 import { AuditService } from './audit/audit.service';
 import { AuthService } from './auth/auth.service';
@@ -174,6 +174,39 @@ describe('API integration', () => {
 
     const tasks = await tasksService.listTasks(ownerAuthUser, {});
     expect(tasks.map((task) => task.title).sort()).toEqual(['Child task', 'Parent task']);
+  });
+
+  it('filters tasks by sprint and backlog assignment', async () => {
+    const { ownerAuthUser } = await seedHierarchy();
+    const sprint = await sprintsRepository.save(
+      sprintsRepository.create({
+        capacityPoints: null,
+        endDate: null,
+        goal: null,
+        name: 'Current Sprint',
+        organizationId: ownerAuthUser.organizationId,
+        startDate: null,
+        state: SprintState.Active,
+      })
+    );
+
+    await tasksService.createTask(ownerAuthUser, {
+      title: 'Sprint task',
+      category: TaskCategory.Work,
+      priority: TaskPriority.Medium,
+      sprintId: sprint.id,
+    });
+    await tasksService.createTask(ownerAuthUser, {
+      title: 'Backlog task',
+      category: TaskCategory.Work,
+      priority: TaskPriority.Medium,
+    });
+
+    const sprintTasks = await tasksService.listTasks(ownerAuthUser, { sprintId: sprint.id });
+    const backlogTasks = await tasksService.listTasks(ownerAuthUser, { sprintId: 'backlog' });
+
+    expect(sprintTasks.map((task) => task.title)).toEqual(['Sprint task']);
+    expect(backlogTasks.map((task) => task.title)).toEqual(['Backlog task']);
   });
 
   it('blocks an admin from creating a task in a child organization outside scope', async () => {

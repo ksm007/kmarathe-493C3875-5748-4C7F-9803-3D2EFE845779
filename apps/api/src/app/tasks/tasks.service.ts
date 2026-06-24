@@ -125,7 +125,9 @@ export class TasksService {
       );
     }
 
-    if (query.sprintId) {
+    if (query.sprintId === 'backlog') {
+      qb.andWhere('task.sprintId IS NULL');
+    } else if (query.sprintId) {
       qb.andWhere('task.sprintId = :sprintId', { sprintId: query.sprintId });
     }
 
