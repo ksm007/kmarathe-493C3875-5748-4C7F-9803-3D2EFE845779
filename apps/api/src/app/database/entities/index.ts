@@ -6,6 +6,7 @@ export * from './llm-interaction.entity';
 export * from './membership.entity';
 export * from './organization.entity';
 export * from './password-reset-token.entity';
+export * from './sprint.entity';
 export * from './task-activity.entity';
 export * from './task-embedding.entity';
 export * from './task.entity';

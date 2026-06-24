@@ -257,6 +257,8 @@ export class TaskDetailPageComponent {
         return 'Status';
       case TaskActivityType.EpicChanged:
         return 'Epic';
+      case TaskActivityType.SprintChanged:
+        return 'Sprint';
       case TaskActivityType.AcceptanceCriteriaChanged:
         return 'Criteria';
       case TaskActivityType.Comment:

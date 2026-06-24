@@ -87,6 +87,8 @@ function makeService(storedTasks: Array<{ id: string; title: string; description
     } as never,
     // organizationsRepository
     {} as never,
+    // sprintsRepository
+    { findOne: jest.fn().mockResolvedValue(null) } as never,
     // usersRepository
     { findOne: jest.fn().mockResolvedValue(null) } as never,
     // taskActivitiesRepository

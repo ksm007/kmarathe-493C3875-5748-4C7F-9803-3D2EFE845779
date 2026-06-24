@@ -25,6 +25,26 @@ export enum TaskPriority {
   High = 'high',
 }
 
+export enum SprintState {
+  Planned = 'planned',
+  Active = 'active',
+  Completed = 'completed',
+}
+
+export interface Sprint {
+  id: string;
+  name: string;
+  goal: string | null;
+  state: SprintState;
+  capacityPoints: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  organizationId: string;
+  organizationName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -34,6 +54,8 @@ export interface Task {
   category: TaskCategory;
   priority: TaskPriority;
   storyPoints: number | null;
+  sprintId: string | null;
+  sprintName: string | null;
   parentEpicId: string | null;
   parentEpicTitle: string | null;
   acceptanceCriteria: AcceptanceCriteriaItem[];
@@ -61,6 +83,7 @@ export enum TaskActivityType {
   TaskUpdated = 'task_updated',
   StatusChanged = 'status_changed',
   EpicChanged = 'epic_changed',
+  SprintChanged = 'sprint_changed',
   AcceptanceCriteriaChanged = 'acceptance_criteria_changed',
   Comment = 'comment',
 }

@@ -72,6 +72,10 @@ export class UpdateTaskDto implements UpdateTaskRequest {
   parentEpicId?: string | null;
 
   @IsOptional()
+  @IsString()
+  sprintId?: string | null;
+
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(20)
   @ValidateNested({ each: true })

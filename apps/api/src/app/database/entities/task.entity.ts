@@ -7,6 +7,7 @@ import {
 import { BaseEntity } from '../../common/entities/base.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { OrganizationEntity } from './organization.entity';
+import { SprintEntity } from './sprint.entity';
 import { TaskActivityEntity } from './task-activity.entity';
 import { UserEntity } from './user.entity';
 
@@ -33,6 +34,15 @@ export class TaskEntity extends BaseEntity {
 
   @Column({ type: 'int', nullable: true })
   storyPoints!: number | null;
+
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  sprintId!: string | null;
+
+  @ManyToOne(() => SprintEntity, (sprint) => sprint.tasks, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  sprint!: SprintEntity | null;
 
   @Column({ type: 'varchar', length: 36, nullable: true })
   parentEpicId!: string | null;

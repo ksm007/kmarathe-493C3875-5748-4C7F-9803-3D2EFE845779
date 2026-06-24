@@ -19,6 +19,7 @@ import {
   MembershipEntity,
   OrganizationEntity,
   PasswordResetTokenEntity,
+  SprintEntity,
   TaskActivityEntity,
   TaskEmbeddingEntity,
   TaskEntity,
@@ -36,6 +37,7 @@ describe('API integration', () => {
   let membershipsRepository: Repository<MembershipEntity>;
   let invitationsRepository: Repository<InvitationEntity>;
   let passwordResetTokensRepository: Repository<PasswordResetTokenEntity>;
+  let sprintsRepository: Repository<SprintEntity>;
   let tasksRepository: Repository<TaskEntity>;
   let auditRepository: Repository<AuditLogEntity>;
   let taskActivitiesRepository: Repository<TaskActivityEntity>;
@@ -64,6 +66,7 @@ describe('API integration', () => {
         MembershipEntity,
         InvitationEntity,
         PasswordResetTokenEntity,
+        SprintEntity,
         TaskEntity,
         TaskActivityEntity,
         TaskEmbeddingEntity,
@@ -81,6 +84,7 @@ describe('API integration', () => {
     membershipsRepository = dataSource.getRepository(MembershipEntity);
     invitationsRepository = dataSource.getRepository(InvitationEntity);
     passwordResetTokensRepository = dataSource.getRepository(PasswordResetTokenEntity);
+    sprintsRepository = dataSource.getRepository(SprintEntity);
     tasksRepository = dataSource.getRepository(TaskEntity);
     auditRepository = dataSource.getRepository(AuditLogEntity);
     taskActivitiesRepository = dataSource.getRepository(TaskActivityEntity);
@@ -126,6 +130,7 @@ describe('API integration', () => {
     tasksService = new TasksService(
       tasksRepository,
       organizationsRepository,
+      sprintsRepository,
       usersRepository,
       taskActivitiesRepository,
       taskEmbeddingsRepository,

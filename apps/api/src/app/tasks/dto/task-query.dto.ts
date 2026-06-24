@@ -27,4 +27,8 @@ export class TaskQueryDto implements TaskQuery {
   @IsOptional()
   @IsString()
   organizationId?: string;
+
+  @IsOptional()
+  @IsString()
+  sprintId?: string;
 }

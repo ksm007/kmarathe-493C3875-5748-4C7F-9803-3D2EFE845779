@@ -69,6 +69,10 @@ export class CreateTaskDto implements CreateTaskRequest {
   parentEpicId?: string | null;
 
   @IsOptional()
+  @IsString()
+  sprintId?: string | null;
+
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(20)
   @ValidateNested({ each: true })

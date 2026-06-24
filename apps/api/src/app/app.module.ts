@@ -10,6 +10,7 @@ import { EmailModule } from './email/email.module';
 import { InvitationsModule } from './invitations/invitations.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { ReportsModule } from './reports/reports.module';
+import { SprintsModule } from './sprints/sprints.module';
 import { TasksModule } from './tasks/tasks.module';
 import { UsersModule } from './users/users.module';
 
@@ -27,6 +28,7 @@ import { UsersModule } from './users/users.module';
     AuditModule,
     AuthModule,
     InvitationsModule,
+    SprintsModule,
     TasksModule,
     ChatModule,
     ReportsModule,

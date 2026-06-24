@@ -4,6 +4,7 @@ import { AiModule } from '../ai/ai.module';
 import { AuditModule } from '../audit/audit.module';
 import {
   OrganizationEntity,
+  SprintEntity,
   TaskActivityEntity,
   TaskEmbeddingEntity,
   TaskEntity,
@@ -18,6 +19,7 @@ import { TasksService } from './tasks.service';
     TypeOrmModule.forFeature([
       TaskEntity,
       OrganizationEntity,
+      SprintEntity,
       UserEntity,
       TaskActivityEntity,
       TaskEmbeddingEntity,

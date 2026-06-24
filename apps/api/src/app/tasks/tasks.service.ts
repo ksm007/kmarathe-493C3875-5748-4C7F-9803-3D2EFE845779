@@ -4,6 +4,7 @@ import {
   IssueType,
   Permission,
   Role,
+  SprintState,
   Task,
   TaskActivity,
   TaskActivityType,
@@ -30,6 +31,7 @@ import { AiService } from '../ai/ai.service';
 import { AuditService } from '../audit/audit.service';
 import {
   OrganizationEntity,
+  SprintEntity,
   TaskActivityEntity,
   TaskEmbeddingEntity,
   TaskEntity,
@@ -47,6 +49,8 @@ export class TasksService {
     private readonly tasksRepository: Repository<TaskEntity>,
     @InjectRepository(OrganizationEntity)
     private readonly organizationsRepository: Repository<OrganizationEntity>,
+    @InjectRepository(SprintEntity)
+    private readonly sprintsRepository: Repository<SprintEntity>,
     @InjectRepository(UserEntity)
     private readonly usersRepository: Repository<UserEntity>,
     @InjectRepository(TaskActivityEntity)
@@ -87,6 +91,7 @@ export class TasksService {
       .leftJoinAndSelect('task.organization', 'organization')
       .leftJoinAndSelect('task.createdBy', 'createdBy')
       .leftJoinAndSelect('task.assignee', 'assignee')
+      .leftJoinAndSelect('task.sprint', 'sprint')
       .leftJoinAndSelect('task.parentEpic', 'parentEpic')
       .where('task.organizationId IN (:...organizationIds)', {
         organizationIds: query.organizationId
@@ -118,6 +123,10 @@ export class TasksService {
           search: `%${query.search}%`,
         },
       );
+    }
+
+    if (query.sprintId) {
+      qb.andWhere('task.sprintId = :sprintId', { sprintId: query.sprintId });
     }
 
     const sortColumn = query.sortBy ? `task.${query.sortBy}` : 'task.position';
@@ -210,6 +219,11 @@ export class TasksService {
       payload.assigneeId ?? null,
     );
     const issueType = payload.issueType ?? IssueType.Task;
+    const sprintId = await this.resolveSprintId(
+      organizationId,
+      issueType,
+      payload.sprintId ?? null,
+    );
     const parentEpicId = await this.resolveParentEpicId(
       organizationId,
       issueType,
@@ -230,6 +244,7 @@ export class TasksService {
       status: payload.status ?? TaskStatus.Todo,
       issueType,
       storyPoints: payload.storyPoints ?? null,
+      sprintId,
       parentEpicId,
       acceptanceCriteria: this.normalizeAcceptanceCriteria(
         payload.acceptanceCriteria,
@@ -279,6 +294,7 @@ export class TasksService {
   ): Promise<Task> {
     const task = await this.getTaskForMutation(user, taskId, 'tasks.update');
     const previousStatus = task.status;
+    const previousSprintId = task.sprintId;
     const previousParentEpicId = task.parentEpicId;
     const previousAcceptanceCriteria = task.acceptanceCriteria ?? [];
 
@@ -314,12 +330,21 @@ export class TasksService {
 
     if (payload.issueType === IssueType.Epic) {
       task.parentEpicId = null;
+      task.sprintId = null;
     } else if (payload.parentEpicId !== undefined) {
       task.parentEpicId = await this.resolveParentEpicId(
         task.organizationId,
         task.issueType,
         payload.parentEpicId,
         task.id,
+      );
+    }
+
+    if (task.issueType !== IssueType.Epic && payload.sprintId !== undefined) {
+      task.sprintId = await this.resolveSprintId(
+        task.organizationId,
+        task.issueType,
+        payload.sprintId,
       );
     }
 
@@ -379,6 +404,19 @@ export class TasksService {
         {
           from: previousParentEpicId,
           to: task.parentEpicId,
+        },
+      );
+    }
+
+    if (previousSprintId !== task.sprintId) {
+      await this.recordActivity(
+        task,
+        user,
+        TaskActivityType.SprintChanged,
+        task.sprintId ? `Added to sprint ${task.sprintId}` : 'Moved to backlog',
+        {
+          from: previousSprintId,
+          to: task.sprintId,
         },
       );
     }
@@ -451,6 +489,7 @@ export class TasksService {
         organization: true,
         createdBy: true,
         assignee: true,
+        sprint: true,
         parentEpic: true,
       },
     });
@@ -746,6 +785,38 @@ export class TasksService {
     return parentEpic.id;
   }
 
+  private async resolveSprintId(
+    organizationId: string,
+    issueType: IssueType,
+    requestedSprintId?: string | null,
+  ): Promise<string | null> {
+    if (!requestedSprintId) {
+      return null;
+    }
+
+    if (issueType === IssueType.Epic) {
+      throw new BadRequestException('Epics cannot be assigned to sprints');
+    }
+
+    const sprint = await this.sprintsRepository.findOne({
+      where: { id: requestedSprintId },
+    });
+
+    if (!sprint) {
+      throw new BadRequestException('Sprint not found');
+    }
+
+    if (sprint.organizationId !== organizationId) {
+      throw new ForbiddenException('Sprint is outside this organization');
+    }
+
+    if (sprint.state === SprintState.Completed) {
+      throw new BadRequestException('Completed sprints cannot accept issues');
+    }
+
+    return sprint.id;
+  }
+
   private async getTaskForMutation(
     user: AuthenticatedUser,
     taskId: string,
@@ -820,6 +891,7 @@ export class TasksService {
         organization: true,
         createdBy: true,
         assignee: true,
+        sprint: true,
         parentEpic: true,
       },
     });
@@ -892,6 +964,8 @@ export class TasksService {
       category: task.category,
       priority: task.priority,
       storyPoints: task.storyPoints,
+      sprintId: task.sprintId,
+      sprintName: task.sprint?.name ?? null,
       parentEpicId: task.parentEpicId,
       parentEpicTitle: task.parentEpic?.title ?? null,
       acceptanceCriteria: task.acceptanceCriteria ?? [],

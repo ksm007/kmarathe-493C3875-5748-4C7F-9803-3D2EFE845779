@@ -3,6 +3,7 @@ import * as bcrypt from 'bcrypt';
 import {
   IssueType,
   Role,
+  SprintState,
   TaskCategory,
   TaskPriority,
   TaskStatus,
@@ -11,6 +12,7 @@ import { apiDataSource } from '../app/database/data-source';
 import {
   MembershipEntity,
   OrganizationEntity,
+  SprintEntity,
   TaskEntity,
   UserEntity,
 } from '../app/database/entities';
@@ -21,6 +23,7 @@ async function seed() {
   const orgsRepo = apiDataSource.getRepository(OrganizationEntity);
   const usersRepo = apiDataSource.getRepository(UserEntity);
   const membershipsRepo = apiDataSource.getRepository(MembershipEntity);
+  const sprintsRepo = apiDataSource.getRepository(SprintEntity);
   const tasksRepo = apiDataSource.getRepository(TaskEntity);
 
   await apiDataSource.query(`
@@ -35,6 +38,7 @@ async function seed() {
       "password_reset_tokens",
       "memberships",
       "tasks",
+      "sprints",
       "users",
       "organizations"
     RESTART IDENTITY CASCADE
@@ -82,6 +86,18 @@ async function seed() {
     }),
   );
 
+  const activeSprint = await sprintsRepo.save(
+    sprintsRepo.create({
+      name: 'Current Operations Sprint',
+      goal: 'Tighten security and executive reporting workflows.',
+      state: SprintState.Active,
+      capacityPoints: 12,
+      startDate: new Date().toISOString().slice(0, 10),
+      endDate: null,
+      organizationId: parentOrg.id,
+    }),
+  );
+
   await tasksRepo.save([
     tasksRepo.create({
       title: 'Review quarterly security checklist',
@@ -103,6 +119,7 @@ async function seed() {
           completed: false,
         },
       ],
+      sprintId: activeSprint.id,
       parentEpicId: operationsEpic.id,
       assigneeId: admin.id,
       dueDate: new Date().toISOString().slice(0, 10),
@@ -126,6 +143,7 @@ async function seed() {
           completed: true,
         },
       ],
+      sprintId: activeSprint.id,
       parentEpicId: operationsEpic.id,
       assigneeId: owner.id,
       dueDate: null,

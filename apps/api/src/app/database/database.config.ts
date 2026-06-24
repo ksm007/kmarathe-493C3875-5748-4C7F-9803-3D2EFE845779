@@ -8,6 +8,7 @@ import {
   MembershipEntity,
   OrganizationEntity,
   PasswordResetTokenEntity,
+  SprintEntity,
   TaskActivityEntity,
   TaskEmbeddingEntity,
   TaskEntity,
@@ -19,6 +20,7 @@ import { MultiOrgMembership1730000000000 } from './migrations/1730000000000-mult
 import { IssueWorkflowFields1740000000000 } from './migrations/1740000000000-issue-workflow-fields';
 import { AcceptanceCriteria1750000000000 } from './migrations/1750000000000-acceptance-criteria';
 import { EpicChildIssues1760000000000 } from './migrations/1760000000000-epic-child-issues';
+import { Sprints1770000000000 } from './migrations/1770000000000-sprints';
 import { DataSourceOptions } from 'typeorm';
 
 export function buildDatabaseOptions(env: Pick<AppEnv, 'DATABASE_URL'>): DataSourceOptions {
@@ -34,6 +36,7 @@ export function buildDatabaseOptions(env: Pick<AppEnv, 'DATABASE_URL'>): DataSou
       MembershipEntity,
       InvitationEntity,
       PasswordResetTokenEntity,
+      SprintEntity,
       TaskEntity,
       TaskActivityEntity,
       TaskEmbeddingEntity,
@@ -49,6 +52,7 @@ export function buildDatabaseOptions(env: Pick<AppEnv, 'DATABASE_URL'>): DataSou
       IssueWorkflowFields1740000000000,
       AcceptanceCriteria1750000000000,
       EpicChildIssues1760000000000,
+      Sprints1770000000000,
     ],
     synchronize: false,
     logging: false,

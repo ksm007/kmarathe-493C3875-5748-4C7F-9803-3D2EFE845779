@@ -10,6 +10,7 @@ export enum Permission {
   TaskUpdate = 'task:update',
   TaskDelete = 'task:delete',
   TaskReorder = 'task:reorder',
+  SprintManage = 'sprint:manage',
   AuditRead = 'audit:read',
   UserManage = 'user:manage',
 }

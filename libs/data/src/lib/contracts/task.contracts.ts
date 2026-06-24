@@ -1,5 +1,6 @@
 import {
   IssueType,
+  SprintState,
   TaskCategory,
   TaskPriority,
   TaskStatus,
@@ -18,6 +19,7 @@ export interface TaskQuery {
   sortBy?: 'createdAt' | 'updatedAt' | 'title' | 'priority' | 'position';
   order?: 'asc' | 'desc';
   organizationId?: string;
+  sprintId?: string;
 }
 
 export interface CreateTaskRequest {
@@ -27,6 +29,7 @@ export interface CreateTaskRequest {
   category: TaskCategory;
   priority: TaskPriority;
   storyPoints?: number | null;
+  sprintId?: string | null;
   parentEpicId?: string | null;
   acceptanceCriteria?: AcceptanceCriteriaInput[];
   status?: TaskStatus;
@@ -43,6 +46,7 @@ export interface UpdateTaskRequest {
   category?: TaskCategory;
   priority?: TaskPriority;
   storyPoints?: number | null;
+  sprintId?: string | null;
   parentEpicId?: string | null;
   acceptanceCriteria?: AcceptanceCriteriaInput[];
   status?: TaskStatus;
@@ -63,4 +67,30 @@ export interface ReorderTasksRequest {
 
 export interface AddTaskCommentRequest {
   message: string;
+}
+
+export interface SprintQuery {
+  state?: SprintState;
+  organizationId?: string;
+}
+
+export interface CreateSprintRequest {
+  name: string;
+  goal?: string | null;
+  capacityPoints?: number | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  organizationId?: string;
+}
+
+export interface UpdateSprintRequest {
+  name?: string;
+  goal?: string | null;
+  capacityPoints?: number | null;
+  startDate?: string | null;
+  endDate?: string | null;
+}
+
+export interface CompleteSprintRequest {
+  destinationSprintId?: string | null;
 }
