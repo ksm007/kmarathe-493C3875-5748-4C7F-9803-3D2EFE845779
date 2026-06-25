@@ -26,6 +26,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import type {
+  AuditLogEntry,
   ChatMessage,
   CreateInvitationRequest,
   CreateSprintRequest,
@@ -54,6 +55,7 @@ import {
   Building2,
   ClipboardList,
   Check,
+  FileText,
   Flag,
   Pencil,
   Plus,
@@ -62,6 +64,8 @@ import {
   Loader2,
   LogOut,
   Mail,
+  RefreshCw,
+  ScrollText,
   Search,
   ShieldCheck,
   Sparkles,
@@ -79,7 +83,13 @@ import {
 } from '~/lib/auth-storage';
 
 type AuthMode = 'login' | 'signup';
-type WorkspaceSection = 'tasks' | 'team' | 'sprints' | 'chat';
+type WorkspaceSection =
+  | 'tasks'
+  | 'team'
+  | 'sprints'
+  | 'chat'
+  | 'reports'
+  | 'audit';
 type ViewMode = 'board' | 'list';
 
 interface TaskFormState {
@@ -507,6 +517,8 @@ function TaskWorkspace({
         queryClient.invalidateQueries({ queryKey: ['invitations'] }),
         queryClient.invalidateQueries({ queryKey: ['sprints'] }),
         queryClient.invalidateQueries({ queryKey: ['chat-history'] }),
+        queryClient.invalidateQueries({ queryKey: ['standup-report'] }),
+        queryClient.invalidateQueries({ queryKey: ['audit-log'] }),
       ]);
     },
     onError: (error) => setOrgSwitchError(formatError(error)),
@@ -651,6 +663,24 @@ function TaskWorkspace({
             >
               AI chat
             </Button>
+            <Button
+              justify="flex-start"
+              variant={activeSection === 'reports' ? 'light' : 'subtle'}
+              color={activeSection === 'reports' ? 'blue' : 'gray'}
+              leftSection={<FileText size={16} />}
+              onClick={() => setActiveSection('reports')}
+            >
+              Reports
+            </Button>
+            <Button
+              justify="flex-start"
+              variant={activeSection === 'audit' ? 'light' : 'subtle'}
+              color={activeSection === 'audit' ? 'blue' : 'gray'}
+              leftSection={<ScrollText size={16} />}
+              onClick={() => setActiveSection('audit')}
+            >
+              Audit
+            </Button>
           </Stack>
 
           <Box mt="auto">
@@ -681,6 +711,10 @@ function TaskWorkspace({
             <SprintsPanel currentUser={user} />
           ) : activeSection === 'chat' ? (
             <ChatPanel currentUser={user} />
+          ) : activeSection === 'reports' ? (
+            <ReportsPanel currentUser={user} />
+          ) : activeSection === 'audit' ? (
+            <AuditPanel currentUser={user} />
           ) : (
             <Stack gap="lg">
               <Group justify="space-between" align="flex-start" gap="md">
@@ -1591,6 +1625,193 @@ function ChatMessageItem({
   );
 }
 
+function ReportsPanel({ currentUser }: { currentUser: CurrentUser }) {
+  const reportQuery = useQuery({
+    queryKey: ['standup-report', currentUser.organizationId],
+    queryFn: apiClient.standupReport,
+  });
+
+  const report = reportQuery.data?.report ?? '';
+
+  return (
+    <Stack gap="lg">
+      <Group justify="space-between" align="flex-start" gap="md">
+        <Box>
+          <Title order={1}>Reports</Title>
+          <Text c="dimmed" mt={4}>
+            {currentUser.organizationName}
+          </Text>
+        </Box>
+        <Button
+          leftSection={<RefreshCw size={16} />}
+          loading={reportQuery.isFetching}
+          variant="default"
+          onClick={() => reportQuery.refetch()}
+        >
+          Refresh
+        </Button>
+      </Group>
+
+      {reportQuery.isError ? (
+        <Alert color="red">{formatError(reportQuery.error)}</Alert>
+      ) : null}
+
+      <Paper withBorder radius="md" p="lg">
+        {reportQuery.isPending ? (
+          <Center py="xl">
+            <Loader />
+          </Center>
+        ) : (
+          <Text component="pre" className="report-output">
+            {report}
+          </Text>
+        )}
+      </Paper>
+    </Stack>
+  );
+}
+
+function AuditPanel({ currentUser }: { currentUser: CurrentUser }) {
+  const [limit, setLimit] = useState(50);
+  const canReadAudit =
+    currentUser.role === Role.Owner || currentUser.role === Role.Admin;
+  const auditQuery = useQuery({
+    queryKey: ['audit-log', currentUser.organizationId, limit],
+    queryFn: () => apiClient.auditLog({ limit }),
+    enabled: canReadAudit,
+  });
+
+  if (!canReadAudit) {
+    return (
+      <Paper withBorder radius="md" p="xl">
+        <Title order={1}>Audit</Title>
+        <Text c="dimmed" mt="sm">
+          Audit log access is available to organization owners and admins.
+        </Text>
+      </Paper>
+    );
+  }
+
+  const entries = auditQuery.data ?? [];
+
+  return (
+    <Stack gap="lg">
+      <Group justify="space-between" align="flex-start" gap="md">
+        <Box>
+          <Title order={1}>Audit</Title>
+          <Text c="dimmed" mt={4}>
+            {entries.length} recent entries
+          </Text>
+        </Box>
+        <Group gap="sm">
+          <Select
+            allowDeselect={false}
+            data={[
+              { value: '25', label: '25' },
+              { value: '50', label: '50' },
+              { value: '100', label: '100' },
+            ]}
+            value={String(limit)}
+            w={96}
+            onChange={(value) => setLimit(Number(value ?? 50))}
+          />
+          <Button
+            leftSection={<RefreshCw size={16} />}
+            loading={auditQuery.isFetching}
+            variant="default"
+            onClick={() => auditQuery.refetch()}
+          >
+            Refresh
+          </Button>
+        </Group>
+      </Group>
+
+      {auditQuery.isError ? (
+        <Alert color="red">{formatError(auditQuery.error)}</Alert>
+      ) : null}
+
+      <Paper withBorder radius="md" p={0}>
+        <Table.ScrollContainer minWidth={920}>
+          <Table verticalSpacing="sm">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Time</Table.Th>
+                <Table.Th>Actor</Table.Th>
+                <Table.Th>Action</Table.Th>
+                <Table.Th>Resource</Table.Th>
+                <Table.Th>Result</Table.Th>
+                <Table.Th>Metadata</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {auditQuery.isPending ? (
+                <Table.Tr>
+                  <Table.Td colSpan={6}>
+                    <Center py="lg">
+                      <Loader size="sm" />
+                    </Center>
+                  </Table.Td>
+                </Table.Tr>
+              ) : entries.length ? (
+                entries.map((entry) => (
+                  <AuditRow key={entry.id} entry={entry} />
+                ))
+              ) : (
+                <Table.Tr>
+                  <Table.Td colSpan={6}>
+                    <Text c="dimmed" py="md">
+                      No audit entries
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              )}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      </Paper>
+    </Stack>
+  );
+}
+
+function AuditRow({ entry }: { entry: AuditLogEntry }) {
+  return (
+    <Table.Tr>
+      <Table.Td>
+        <Text size="sm">{new Date(entry.createdAt).toLocaleString()}</Text>
+      </Table.Td>
+      <Table.Td>
+        <Text size="sm">{entry.actorEmail ?? 'System'}</Text>
+      </Table.Td>
+      <Table.Td>
+        <Text size="sm" fw={700}>
+          {entry.action}
+        </Text>
+      </Table.Td>
+      <Table.Td>
+        <Text size="sm">
+          {entry.resource}
+          {entry.resourceId ? ` ${entry.resourceId}` : ''}
+        </Text>
+      </Table.Td>
+      <Table.Td>
+        <Badge color={entry.allowed ? 'green' : 'red'} variant="light">
+          {entry.allowed ? 'Allowed' : 'Denied'}
+        </Badge>
+        {entry.reason ? (
+          <Text size="xs" c="dimmed" mt={4}>
+            {entry.reason}
+          </Text>
+        ) : null}
+      </Table.Td>
+      <Table.Td>
+        <Text size="xs" c="dimmed" lineClamp={3}>
+          {formatMetadata(entry.metadata)}
+        </Text>
+      </Table.Td>
+    </Table.Tr>
+  );
+}
+
 function TaskBoard({
   groupedTasks,
   onDelete,
@@ -1967,6 +2188,14 @@ function formatError(error: unknown) {
   return error instanceof ApiClientError
     ? error.message
     : 'Unable to load workspace data.';
+}
+
+function formatMetadata(metadata: Record<string, unknown> | null) {
+  if (!metadata) {
+    return 'None';
+  }
+
+  return JSON.stringify(metadata);
 }
 
 function taskFormToPayload(form: TaskFormState): CreateTaskRequest {

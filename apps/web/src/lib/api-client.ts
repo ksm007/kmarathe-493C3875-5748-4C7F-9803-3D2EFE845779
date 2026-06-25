@@ -1,4 +1,6 @@
 import type {
+  AuditLogEntry,
+  AuditLogQuery,
   ChatAskRequest,
   ChatHistoryQuery,
   ChatHistoryResponse,
@@ -300,5 +302,18 @@ export const apiClient = {
         method: 'POST',
       },
     );
+  },
+
+  standupReport() {
+    return request<{ report: string }>('/reports/standup');
+  },
+
+  auditLog(query: AuditLogQuery = {}) {
+    const params = new URLSearchParams();
+    if (query.limit) {
+      params.set('limit', String(query.limit));
+    }
+    const suffix = params.size ? `?${params.toString()}` : '';
+    return request<AuditLogEntry[]>(`/audit-log${suffix}`);
   },
 };
