@@ -1,10 +1,12 @@
 import type {
+  CreateTaskRequest,
   CurrentUser,
   LoginRequest,
   LoginResponse,
   RegisterRequest,
   Task,
   TaskQuery,
+  UpdateTaskRequest,
 } from '@nx-temp/data';
 import { getStoredSession } from './auth-storage';
 
@@ -109,5 +111,25 @@ export const apiClient = {
 
     const suffix = params.size ? `?${params.toString()}` : '';
     return request<Task[]>(`/tasks${suffix}`);
+  },
+
+  createTask(payload: CreateTaskRequest) {
+    return request<Task>('/tasks', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateTask(id: string, payload: UpdateTaskRequest) {
+    return request<Task>(`/tasks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  deleteTask(id: string) {
+    return request<{ success: boolean }>(`/tasks/${id}`, {
+      method: 'DELETE',
+    });
   },
 };

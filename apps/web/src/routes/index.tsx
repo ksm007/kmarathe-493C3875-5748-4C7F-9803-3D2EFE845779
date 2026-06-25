@@ -8,6 +8,8 @@ import {
   Container,
   Group,
   Loader,
+  Modal,
+  NumberInput,
   Paper,
   PasswordInput,
   SegmentedControl,
@@ -16,18 +18,29 @@ import {
   Stack,
   Table,
   Text,
+  Textarea,
   TextInput,
   ThemeIcon,
   Title,
 } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import type { CurrentUser, LoginRequest, RegisterRequest, Task, TaskQuery } from '@nx-temp/data';
-import { TaskCategory, TaskPriority, TaskStatus } from '@nx-temp/data';
+import type {
+  CreateTaskRequest,
+  CurrentUser,
+  LoginRequest,
+  RegisterRequest,
+  Task,
+  TaskQuery,
+  UpdateTaskRequest,
+} from '@nx-temp/data';
+import { IssueType, TaskCategory, TaskPriority, TaskStatus } from '@nx-temp/data';
 import {
   ArrowRight,
   Building2,
   ClipboardList,
+  Pencil,
+  Plus,
   LayoutDashboard,
   ListChecks,
   Loader2,
@@ -36,6 +49,7 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  Trash2,
   Users,
 } from 'lucide-react';
 import { apiClient, ApiClientError } from '~/lib/api-client';
@@ -43,6 +57,16 @@ import { clearSession, getStoredSession, saveSession } from '~/lib/auth-storage'
 
 type AuthMode = 'login' | 'signup';
 type ViewMode = 'board' | 'list';
+
+interface TaskFormState {
+  title: string;
+  description: string;
+  issueType: IssueType;
+  category: TaskCategory;
+  priority: TaskPriority;
+  status: TaskStatus;
+  storyPoints: number | '';
+}
 
 const statusColumns = [
   { status: TaskStatus.Backlog, label: 'Backlog', color: 'gray' },
@@ -56,6 +80,16 @@ const priorityColor: Record<TaskPriority, string> = {
   [TaskPriority.Low]: 'gray',
   [TaskPriority.Medium]: 'blue',
   [TaskPriority.High]: 'red',
+};
+
+const emptyTaskForm: TaskFormState = {
+  title: '',
+  description: '',
+  issueType: IssueType.Task,
+  category: TaskCategory.Work,
+  priority: TaskPriority.Medium,
+  status: TaskStatus.Todo,
+  storyPoints: '',
 };
 
 export const Route = createFileRoute('/')({
@@ -306,6 +340,9 @@ function TaskWorkspace({
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<TaskQuery>({ sortBy: 'position', order: 'asc' });
   const [viewMode, setViewMode] = useState<ViewMode>('board');
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [taskForm, setTaskForm] = useState<TaskFormState>(emptyTaskForm);
 
   const userQuery = useQuery({
     queryKey: ['me'],
@@ -329,8 +366,95 @@ function TaskWorkspace({
     onSignedOut();
   };
 
+  const refreshTasks = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['tasks'] });
+  };
+
+  const createTaskMutation = useMutation({
+    mutationFn: apiClient.createTask,
+    onSuccess: async () => {
+      closeTaskForm();
+      await refreshTasks();
+    },
+  });
+
+  const updateTaskMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateTaskRequest }) =>
+      apiClient.updateTask(id, payload),
+    onSuccess: async () => {
+      closeTaskForm();
+      await refreshTasks();
+    },
+  });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: apiClient.deleteTask,
+    onSuccess: async () => {
+      closeTaskForm();
+      await refreshTasks();
+    },
+  });
+  const mutationError = formatError(
+    createTaskMutation.error ?? updateTaskMutation.error ?? deleteTaskMutation.error,
+  );
+  const mutationPending =
+    createTaskMutation.isPending || updateTaskMutation.isPending || deleteTaskMutation.isPending;
+
+  const openCreateTask = () => {
+    setEditingTask(null);
+    setTaskForm(emptyTaskForm);
+    setTaskFormOpen(true);
+  };
+
+  const openEditTask = (task: Task) => {
+    setEditingTask(task);
+    setTaskForm({
+      title: task.title,
+      description: task.description ?? '',
+      issueType: task.issueType,
+      category: task.category,
+      priority: task.priority,
+      status: task.status,
+      storyPoints: task.storyPoints ?? '',
+    });
+    setTaskFormOpen(true);
+  };
+
+  const closeTaskForm = () => {
+    setTaskFormOpen(false);
+    setEditingTask(null);
+    setTaskForm(emptyTaskForm);
+  };
+
+  const saveTask = () => {
+    const payload = taskFormToPayload(taskForm);
+    if (editingTask) {
+      updateTaskMutation.mutate({ id: editingTask.id, payload });
+      return;
+    }
+
+    createTaskMutation.mutate(payload as CreateTaskRequest);
+  };
+
+  const deleteTask = (task: Task) => {
+    if (window.confirm(`Delete "${task.title}"?`)) {
+      deleteTaskMutation.mutate(task.id);
+    }
+  };
+
   return (
     <Box className="workspace-page">
+      <TaskFormModal
+        error={mutationError}
+        form={taskForm}
+        mode={editingTask ? 'edit' : 'create'}
+        onChange={setTaskForm}
+        onClose={closeTaskForm}
+        onDelete={editingTask ? () => deleteTask(editingTask) : undefined}
+        onSave={saveTask}
+        opened={taskFormOpen}
+        pending={mutationPending}
+      />
       <Box className="workspace-shell">
         <Box component="aside" className="workspace-sidebar">
           <Group gap="sm" wrap="nowrap">
@@ -384,14 +508,19 @@ function TaskWorkspace({
                   {tasks.length} tracked tasks, {activeTasks} active items
                 </Text>
               </Box>
-              <SegmentedControl
-                value={viewMode}
-                onChange={(value) => setViewMode(value as ViewMode)}
-                data={[
-                  { label: 'Board', value: 'board' },
-                  { label: 'List', value: 'list' },
-                ]}
-              />
+              <Group gap="sm">
+                <SegmentedControl
+                  value={viewMode}
+                  onChange={(value) => setViewMode(value as ViewMode)}
+                  data={[
+                    { label: 'Board', value: 'board' },
+                    { label: 'List', value: 'list' },
+                  ]}
+                />
+                <Button leftSection={<Plus size={16} />} onClick={openCreateTask}>
+                  New task
+                </Button>
+              </Group>
             </Group>
 
             <Paper withBorder radius="md" p="md">
@@ -457,9 +586,9 @@ function TaskWorkspace({
                 <Loader />
               </Center>
             ) : viewMode === 'board' ? (
-              <TaskBoard groupedTasks={groupedTasks} />
+              <TaskBoard groupedTasks={groupedTasks} onDelete={deleteTask} onEdit={openEditTask} />
             ) : (
-              <TaskList tasks={tasks} />
+              <TaskList tasks={tasks} onDelete={deleteTask} onEdit={openEditTask} />
             )}
           </Stack>
         </Box>
@@ -468,7 +597,15 @@ function TaskWorkspace({
   );
 }
 
-function TaskBoard({ groupedTasks }: { groupedTasks: Record<TaskStatus, Task[]> }) {
+function TaskBoard({
+  groupedTasks,
+  onDelete,
+  onEdit,
+}: {
+  groupedTasks: Record<TaskStatus, Task[]>;
+  onDelete: (task: Task) => void;
+  onEdit: (task: Task) => void;
+}) {
   return (
     <SimpleGrid cols={{ base: 1, md: 2, xl: 5 }} spacing="md">
       {statusColumns.map((column) => (
@@ -484,7 +621,7 @@ function TaskBoard({ groupedTasks }: { groupedTasks: Record<TaskStatus, Task[]> 
 
           <Stack gap="sm">
             {groupedTasks[column.status].map((task) => (
-              <TaskCard key={task.id} task={task} />
+              <TaskCard key={task.id} task={task} onDelete={onDelete} onEdit={onEdit} />
             ))}
             {groupedTasks[column.status].length === 0 ? (
               <Text size="sm" c="dimmed" py="md">
@@ -498,7 +635,15 @@ function TaskBoard({ groupedTasks }: { groupedTasks: Record<TaskStatus, Task[]> 
   );
 }
 
-function TaskCard({ task }: { task: Task }) {
+function TaskCard({
+  task,
+  onDelete,
+  onEdit,
+}: {
+  task: Task;
+  onDelete: (task: Task) => void;
+  onEdit: (task: Task) => void;
+}) {
   return (
     <Paper withBorder radius="md" p="sm" className="task-card">
       <Stack gap={8}>
@@ -506,9 +651,25 @@ function TaskCard({ task }: { task: Task }) {
           <Badge color={priorityColor[task.priority]} variant="light">
             {task.priority}
           </Badge>
-          <Text size="xs" c="dimmed">
-            {task.issueType}
-          </Text>
+          <Group gap={4}>
+            <Button
+              aria-label={`Edit ${task.title}`}
+              size="compact-xs"
+              variant="subtle"
+              onClick={() => onEdit(task)}
+            >
+              <Pencil size={14} />
+            </Button>
+            <Button
+              aria-label={`Delete ${task.title}`}
+              color="red"
+              size="compact-xs"
+              variant="subtle"
+              onClick={() => onDelete(task)}
+            >
+              <Trash2 size={14} />
+            </Button>
+          </Group>
         </Group>
         <Text fw={700} size="sm" lineClamp={2}>
           {task.title}
@@ -520,14 +681,25 @@ function TaskCard({ task }: { task: Task }) {
           <Text size="xs" c="dimmed">
             {task.assigneeName ?? 'Unassigned'}
           </Text>
-          {task.storyPoints != null ? <Badge variant="outline">{task.storyPoints} pt</Badge> : null}
+          <Group gap={4}>
+            <Badge variant="outline">{task.issueType}</Badge>
+            {task.storyPoints != null ? <Badge variant="outline">{task.storyPoints} pt</Badge> : null}
+          </Group>
         </Group>
       </Stack>
     </Paper>
   );
 }
 
-function TaskList({ tasks }: { tasks: Task[] }) {
+function TaskList({
+  tasks,
+  onDelete,
+  onEdit,
+}: {
+  tasks: Task[];
+  onDelete: (task: Task) => void;
+  onEdit: (task: Task) => void;
+}) {
   if (tasks.length === 0) {
     return (
       <Paper withBorder radius="md" p="xl">
@@ -547,6 +719,7 @@ function TaskList({ tasks }: { tasks: Task[] }) {
               <Table.Th>Priority</Table.Th>
               <Table.Th>Assignee</Table.Th>
               <Table.Th>Sprint</Table.Th>
+              <Table.Th>Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -570,12 +743,155 @@ function TaskList({ tasks }: { tasks: Task[] }) {
                 </Table.Td>
                 <Table.Td>{task.assigneeName ?? 'Unassigned'}</Table.Td>
                 <Table.Td>{task.sprintName ?? 'Backlog'}</Table.Td>
+                <Table.Td>
+                  <Group gap={4} wrap="nowrap">
+                    <Button size="compact-xs" variant="subtle" onClick={() => onEdit(task)}>
+                      <Pencil size={14} />
+                    </Button>
+                    <Button color="red" size="compact-xs" variant="subtle" onClick={() => onDelete(task)}>
+                      <Trash2 size={14} />
+                    </Button>
+                  </Group>
+                </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
     </Paper>
+  );
+}
+
+function TaskFormModal({
+  error,
+  form,
+  mode,
+  onChange,
+  onClose,
+  onDelete,
+  onSave,
+  opened,
+  pending,
+}: {
+  error: string;
+  form: TaskFormState;
+  mode: 'create' | 'edit';
+  onChange: (form: TaskFormState) => void;
+  onClose: () => void;
+  onDelete?: () => void;
+  onSave: () => void;
+  opened: boolean;
+  pending: boolean;
+}) {
+  const update = <TKey extends keyof TaskFormState>(key: TKey, value: TaskFormState[TKey]) => {
+    onChange({ ...form, [key]: value });
+  };
+
+  return (
+    <Modal opened={opened} onClose={onClose} title={mode === 'create' ? 'New task' : 'Edit task'} centered>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSave();
+        }}
+      >
+        <Stack gap="md">
+          <TextInput
+            label="Title"
+            maxLength={160}
+            required
+            value={form.title}
+            onChange={(event) => update('title', event.target.value)}
+          />
+          <Textarea
+            autosize
+            label="Description"
+            maxLength={2000}
+            minRows={3}
+            value={form.description}
+            onChange={(event) => update('description', event.target.value)}
+          />
+          <SimpleGrid cols={{ base: 1, sm: 2 }}>
+            <Select
+              allowDeselect={false}
+              label="Type"
+              data={[
+                { value: IssueType.Task, label: 'Task' },
+                { value: IssueType.Bug, label: 'Bug' },
+                { value: IssueType.Story, label: 'Story' },
+                { value: IssueType.Epic, label: 'Epic' },
+              ]}
+              value={form.issueType}
+              onChange={(value) => update('issueType', value as IssueType)}
+            />
+            <Select
+              allowDeselect={false}
+              label="Status"
+              data={statusColumns.map((column) => ({ value: column.status, label: column.label }))}
+              value={form.status}
+              onChange={(value) => update('status', value as TaskStatus)}
+            />
+            <Select
+              allowDeselect={false}
+              label="Category"
+              data={[
+                { value: TaskCategory.Work, label: 'Work' },
+                { value: TaskCategory.Personal, label: 'Personal' },
+                { value: TaskCategory.Ops, label: 'Ops' },
+              ]}
+              value={form.category}
+              onChange={(value) => update('category', value as TaskCategory)}
+            />
+            <Select
+              allowDeselect={false}
+              label="Priority"
+              data={[
+                { value: TaskPriority.Low, label: 'Low' },
+                { value: TaskPriority.Medium, label: 'Medium' },
+                { value: TaskPriority.High, label: 'High' },
+              ]}
+              value={form.priority}
+              onChange={(value) => update('priority', value as TaskPriority)}
+            />
+          </SimpleGrid>
+          <NumberInput
+            allowDecimal={false}
+            allowNegative={false}
+            label="Story points"
+            max={99}
+            min={0}
+            value={form.storyPoints}
+            onChange={(value) => update('storyPoints', typeof value === 'number' ? value : '')}
+          />
+
+          {error ? <Alert color="red">{error}</Alert> : null}
+
+          <Group justify="space-between">
+            {onDelete ? (
+              <Button
+                color="red"
+                leftSection={<Trash2 size={16} />}
+                type="button"
+                variant="subtle"
+                onClick={onDelete}
+              >
+                Delete
+              </Button>
+            ) : (
+              <span />
+            )}
+            <Group gap="sm">
+              <Button type="button" variant="default" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button loading={pending} type="submit">
+                Save
+              </Button>
+            </Group>
+          </Group>
+        </Stack>
+      </form>
+    </Modal>
   );
 }
 
@@ -609,5 +925,21 @@ function groupTasksByStatus(tasks: Task[]) {
 }
 
 function formatError(error: unknown) {
+  if (!error) {
+    return '';
+  }
+
   return error instanceof ApiClientError ? error.message : 'Unable to load workspace data.';
+}
+
+function taskFormToPayload(form: TaskFormState): CreateTaskRequest {
+  return {
+    title: form.title.trim(),
+    description: form.description.trim() ? form.description.trim() : null,
+    issueType: form.issueType,
+    category: form.category,
+    priority: form.priority,
+    status: form.status,
+    storyPoints: form.storyPoints === '' ? null : form.storyPoints,
+  };
 }
