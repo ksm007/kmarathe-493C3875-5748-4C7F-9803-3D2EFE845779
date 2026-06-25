@@ -1,16 +1,22 @@
 import type {
+  CreateInvitationRequest,
   CreateTaskRequest,
   CurrentUser,
+  InvitationResponse,
   LoginRequest,
   LoginResponse,
   RegisterRequest,
+  SwitchOrgRequest,
   Task,
   TaskQuery,
   UpdateTaskRequest,
+  UserSummary,
 } from '@nx-temp/data';
 import { getStoredSession } from './auth-storage';
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api';
+const apiBaseUrl =
+  import.meta.env.VITE_API_BASE_URL ??
+  (import.meta.env.DEV ? 'http://localhost:3000/api' : '/api');
 
 export class ApiClientError extends Error {
   constructor(
@@ -101,6 +107,13 @@ export const apiClient = {
     });
   },
 
+  switchOrg(payload: SwitchOrgRequest) {
+    return request<LoginResponse>('/auth/switch-org', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
   listTasks(query: TaskQuery = {}) {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(query)) {
@@ -130,6 +143,27 @@ export const apiClient = {
   deleteTask(id: string) {
     return request<{ success: boolean }>(`/tasks/${id}`, {
       method: 'DELETE',
+    });
+  },
+
+  listUsers() {
+    return request<UserSummary[]>('/users');
+  },
+
+  removeUser(id: string) {
+    return request<{ success: boolean }>(`/users/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  listInvitations() {
+    return request<InvitationResponse[]>('/invitations');
+  },
+
+  createInvitation(payload: CreateInvitationRequest) {
+    return request<void>('/invitations', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   },
 };
