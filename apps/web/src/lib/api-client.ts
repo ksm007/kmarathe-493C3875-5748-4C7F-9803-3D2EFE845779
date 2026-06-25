@@ -1,15 +1,25 @@
 import type {
+  ChatAskRequest,
+  ChatHistoryQuery,
+  ChatHistoryResponse,
+  ChatStreamEvent,
+  CompleteSprintRequest,
+  ConfirmPendingChatActionResponse,
   CreateInvitationRequest,
+  CreateSprintRequest,
   CreateTaskRequest,
   CurrentUser,
   InvitationResponse,
   LoginRequest,
   LoginResponse,
   RegisterRequest,
+  Sprint,
+  SprintQuery,
   SwitchOrgRequest,
   Task,
   TaskQuery,
   UpdateTaskRequest,
+  UpdateSprintRequest,
   UserSummary,
 } from '@nx-temp/data';
 import { getStoredSession } from './auth-storage';
@@ -33,13 +43,7 @@ async function request<TResponse>(
   path: string,
   options: RequestInit = {},
 ): Promise<TResponse> {
-  const session = getStoredSession();
-  const headers = new Headers(options.headers);
-  headers.set('Content-Type', 'application/json');
-
-  if (session?.accessToken) {
-    headers.set('Authorization', `Bearer ${session.accessToken}`);
-  }
+  const headers = createHeaders(options.headers);
 
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...options,
@@ -56,6 +60,18 @@ async function request<TResponse>(
   }
 
   return payload as TResponse;
+}
+
+function createHeaders(init?: HeadersInit) {
+  const session = getStoredSession();
+  const headers = new Headers(init);
+  headers.set('Content-Type', 'application/json');
+
+  if (session?.accessToken) {
+    headers.set('Authorization', `Bearer ${session.accessToken}`);
+  }
+
+  return headers;
 }
 
 async function readPayload(response: Response) {
@@ -165,5 +181,124 @@ export const apiClient = {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  },
+
+  listSprints(query: SprintQuery = {}) {
+    const params = new URLSearchParams();
+    if (query.state) {
+      params.set('state', query.state);
+    }
+    if (query.organizationId) {
+      params.set('organizationId', query.organizationId);
+    }
+    const suffix = params.size ? `?${params.toString()}` : '';
+    return request<Sprint[]>(`/sprints${suffix}`);
+  },
+
+  createSprint(payload: CreateSprintRequest) {
+    return request<Sprint>('/sprints', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateSprint(id: string, payload: UpdateSprintRequest) {
+    return request<Sprint>(`/sprints/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  startSprint(id: string) {
+    return request<Sprint>(`/sprints/${id}/start`, {
+      method: 'PATCH',
+    });
+  },
+
+  completeSprint(id: string, payload: CompleteSprintRequest = {}) {
+    return request<Sprint>(`/sprints/${id}/complete`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  chatHistory(query: ChatHistoryQuery = {}) {
+    const params = new URLSearchParams();
+    if (query.limit) {
+      params.set('limit', String(query.limit));
+    }
+    if (query.before) {
+      params.set('before', query.before);
+    }
+    const suffix = params.size ? `?${params.toString()}` : '';
+    return request<ChatHistoryResponse>(`/chat/history${suffix}`);
+  },
+
+  async askChat(
+    payload: ChatAskRequest,
+    onEvent: (event: ChatStreamEvent) => void,
+  ) {
+    const response = await fetch(`${apiBaseUrl}/chat/ask`, {
+      method: 'POST',
+      headers: createHeaders(),
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const responsePayload = await readPayload(response);
+      throw new ApiClientError(
+        extractErrorMessage(responsePayload) ??
+          `Request failed with ${response.status}`,
+        response.status,
+        responsePayload,
+      );
+    }
+
+    if (!response.body) {
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const frames = buffer.split('\n\n');
+      buffer = frames.pop() ?? '';
+
+      for (const frame of frames) {
+        const data = frame
+          .split('\n')
+          .find((line) => line.startsWith('data: '))
+          ?.slice(6);
+        if (data) {
+          onEvent(JSON.parse(data) as ChatStreamEvent);
+        }
+      }
+    }
+  },
+
+  confirmPendingChatAction(id: string) {
+    return request<ConfirmPendingChatActionResponse>(
+      `/chat/pending-actions/${id}/confirm`,
+      {
+        method: 'POST',
+      },
+    );
+  },
+
+  cancelPendingChatAction(id: string) {
+    return request<ConfirmPendingChatActionResponse>(
+      `/chat/pending-actions/${id}/cancel`,
+      {
+        method: 'POST',
+      },
+    );
   },
 };

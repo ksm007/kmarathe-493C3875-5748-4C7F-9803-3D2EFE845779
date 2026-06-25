@@ -26,12 +26,16 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import type {
+  ChatMessage,
   CreateInvitationRequest,
+  CreateSprintRequest,
   CreateTaskRequest,
   CurrentUser,
   InvitationResponse,
+  PendingChatAction,
   LoginRequest,
   RegisterRequest,
+  Sprint,
   Task,
   TaskQuery,
   UpdateTaskRequest,
@@ -40,6 +44,7 @@ import type {
 import {
   IssueType,
   Role,
+  SprintState,
   TaskCategory,
   TaskPriority,
   TaskStatus,
@@ -48,6 +53,8 @@ import {
   ArrowRight,
   Building2,
   ClipboardList,
+  Check,
+  Flag,
   Pencil,
   Plus,
   LayoutDashboard,
@@ -62,6 +69,7 @@ import {
   UserMinus,
   UserPlus,
   Users,
+  X,
 } from 'lucide-react';
 import { apiClient, ApiClientError } from '~/lib/api-client';
 import {
@@ -71,7 +79,7 @@ import {
 } from '~/lib/auth-storage';
 
 type AuthMode = 'login' | 'signup';
-type WorkspaceSection = 'tasks' | 'team';
+type WorkspaceSection = 'tasks' | 'team' | 'sprints' | 'chat';
 type ViewMode = 'board' | 'list';
 
 interface TaskFormState {
@@ -87,6 +95,14 @@ interface TaskFormState {
 interface InvitationFormState {
   email: string;
   role: Role;
+}
+
+interface SprintFormState {
+  name: string;
+  goal: string;
+  capacityPoints: number | '';
+  startDate: string;
+  endDate: string;
 }
 
 const statusColumns = [
@@ -116,6 +132,14 @@ const emptyTaskForm: TaskFormState = {
 const emptyInvitationForm: InvitationFormState = {
   email: '',
   role: Role.Viewer,
+};
+
+const emptySprintForm: SprintFormState = {
+  name: '',
+  goal: '',
+  capacityPoints: '',
+  startDate: '',
+  endDate: '',
 };
 
 export const Route = createFileRoute('/')({
@@ -481,6 +505,8 @@ function TaskWorkspace({
         queryClient.invalidateQueries({ queryKey: ['tasks'] }),
         queryClient.invalidateQueries({ queryKey: ['team-users'] }),
         queryClient.invalidateQueries({ queryKey: ['invitations'] }),
+        queryClient.invalidateQueries({ queryKey: ['sprints'] }),
+        queryClient.invalidateQueries({ queryKey: ['chat-history'] }),
       ]);
     },
     onError: (error) => setOrgSwitchError(formatError(error)),
@@ -609,9 +635,19 @@ function TaskWorkspace({
             </Button>
             <Button
               justify="flex-start"
-              variant="subtle"
-              color="gray"
+              variant={activeSection === 'sprints' ? 'light' : 'subtle'}
+              color={activeSection === 'sprints' ? 'blue' : 'gray'}
+              leftSection={<Flag size={16} />}
+              onClick={() => setActiveSection('sprints')}
+            >
+              Sprints
+            </Button>
+            <Button
+              justify="flex-start"
+              variant={activeSection === 'chat' ? 'light' : 'subtle'}
+              color={activeSection === 'chat' ? 'blue' : 'gray'}
               leftSection={<Sparkles size={16} />}
+              onClick={() => setActiveSection('chat')}
             >
               AI chat
             </Button>
@@ -641,6 +677,10 @@ function TaskWorkspace({
         <Box component="main" className="workspace-main">
           {activeSection === 'team' ? (
             <TeamPanel currentUser={user} />
+          ) : activeSection === 'sprints' ? (
+            <SprintsPanel currentUser={user} />
+          ) : activeSection === 'chat' ? (
+            <ChatPanel currentUser={user} />
           ) : (
             <Stack gap="lg">
               <Group justify="space-between" align="flex-start" gap="md">
@@ -1029,6 +1069,525 @@ function InvitationRow({ invitation }: { invitation: InvitationResponse }) {
       </Table.Td>
       <Table.Td>{new Date(invitation.expiresAt).toLocaleDateString()}</Table.Td>
     </Table.Tr>
+  );
+}
+
+function SprintsPanel({ currentUser }: { currentUser: CurrentUser }) {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<SprintFormState>(emptySprintForm);
+  const canManageSprints =
+    currentUser.role === Role.Owner || currentUser.role === Role.Admin;
+
+  const sprintsQuery = useQuery({
+    queryKey: ['sprints', currentUser.organizationId],
+    queryFn: () => apiClient.listSprints(),
+    enabled: canManageSprints,
+  });
+
+  const refreshSprints = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['sprints'] }),
+      queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+    ]);
+  };
+
+  const createMutation = useMutation({
+    mutationFn: apiClient.createSprint,
+    onSuccess: async () => {
+      setForm(emptySprintForm);
+      await refreshSprints();
+    },
+  });
+  const startMutation = useMutation({
+    mutationFn: apiClient.startSprint,
+    onSuccess: refreshSprints,
+  });
+  const completeMutation = useMutation({
+    mutationFn: ({
+      id,
+      destinationSprintId,
+    }: {
+      id: string;
+      destinationSprintId?: string | null;
+    }) => apiClient.completeSprint(id, { destinationSprintId }),
+    onSuccess: refreshSprints,
+  });
+
+  const sprints = sprintsQuery.data ?? [];
+  const plannedSprints = sprints.filter(
+    (sprint) => sprint.state === SprintState.Planned,
+  );
+  const activeSprint = sprints.find(
+    (sprint) => sprint.state === SprintState.Active,
+  );
+  const error = formatError(
+    createMutation.error ??
+      startMutation.error ??
+      completeMutation.error ??
+      sprintsQuery.error,
+  );
+  const pending =
+    createMutation.isPending ||
+    startMutation.isPending ||
+    completeMutation.isPending;
+
+  const submitSprint = () => {
+    const payload: CreateSprintRequest = {
+      name: form.name.trim(),
+      goal: form.goal.trim() ? form.goal.trim() : null,
+      capacityPoints: form.capacityPoints === '' ? null : form.capacityPoints,
+      startDate: form.startDate || null,
+      endDate: form.endDate || null,
+    };
+    createMutation.mutate(payload);
+  };
+
+  if (!canManageSprints) {
+    return (
+      <Paper withBorder radius="md" p="xl">
+        <Title order={1}>Sprints</Title>
+        <Text c="dimmed" mt="sm">
+          Sprint planning is available to organization owners and admins.
+        </Text>
+      </Paper>
+    );
+  }
+
+  return (
+    <Stack gap="lg">
+      <Group justify="space-between" align="flex-start" gap="md">
+        <Box>
+          <Title order={1}>Sprints</Title>
+          <Text c="dimmed" mt={4}>
+            {sprints.length} sprints,{' '}
+            {activeSprint ? activeSprint.name : 'no active sprint'}
+          </Text>
+        </Box>
+      </Group>
+
+      <Paper withBorder radius="md" p="md">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            submitSprint();
+          }}
+        >
+          <Stack gap="md">
+            <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+              <TextInput
+                label="Sprint name"
+                maxLength={120}
+                value={form.name}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
+                }
+                required
+              />
+              <NumberInput
+                allowDecimal={false}
+                allowNegative={false}
+                label="Capacity points"
+                min={0}
+                value={form.capacityPoints}
+                onChange={(value) =>
+                  setForm((current) => ({
+                    ...current,
+                    capacityPoints: typeof value === 'number' ? value : '',
+                  }))
+                }
+              />
+              <TextInput
+                label="Start date"
+                type="date"
+                value={form.startDate}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    startDate: event.target.value,
+                  }))
+                }
+              />
+              <TextInput
+                label="End date"
+                type="date"
+                value={form.endDate}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    endDate: event.target.value,
+                  }))
+                }
+              />
+            </SimpleGrid>
+            <Textarea
+              autosize
+              label="Goal"
+              minRows={2}
+              value={form.goal}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, goal: event.target.value }))
+              }
+            />
+            <Group justify="flex-end">
+              <Button
+                leftSection={<Plus size={16} />}
+                loading={createMutation.isPending}
+                type="submit"
+              >
+                Create sprint
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </Paper>
+
+      {error ? <Alert color="red">{error}</Alert> : null}
+
+      <Paper withBorder radius="md" p={0}>
+        <Table.ScrollContainer minWidth={860}>
+          <Table verticalSpacing="sm">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Name</Table.Th>
+                <Table.Th>State</Table.Th>
+                <Table.Th>Capacity</Table.Th>
+                <Table.Th>Dates</Table.Th>
+                <Table.Th>Actions</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {sprintsQuery.isPending ? (
+                <Table.Tr>
+                  <Table.Td colSpan={5}>
+                    <Center py="lg">
+                      <Loader size="sm" />
+                    </Center>
+                  </Table.Td>
+                </Table.Tr>
+              ) : sprints.length ? (
+                sprints.map((sprint) => (
+                  <SprintRow
+                    key={sprint.id}
+                    pending={pending}
+                    plannedSprints={plannedSprints}
+                    sprint={sprint}
+                    onComplete={(destinationSprintId) =>
+                      completeMutation.mutate({
+                        id: sprint.id,
+                        destinationSprintId,
+                      })
+                    }
+                    onStart={() => startMutation.mutate(sprint.id)}
+                  />
+                ))
+              ) : (
+                <Table.Tr>
+                  <Table.Td colSpan={5}>
+                    <Text c="dimmed" py="md">
+                      No sprints
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              )}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      </Paper>
+    </Stack>
+  );
+}
+
+function SprintRow({
+  pending,
+  plannedSprints,
+  sprint,
+  onComplete,
+  onStart,
+}: {
+  pending: boolean;
+  plannedSprints: Sprint[];
+  sprint: Sprint;
+  onComplete: (destinationSprintId?: string | null) => void;
+  onStart: () => void;
+}) {
+  const destinationOptions = plannedSprints
+    .filter((plannedSprint) => plannedSprint.id !== sprint.id)
+    .map((plannedSprint) => ({
+      value: plannedSprint.id,
+      label: plannedSprint.name,
+    }));
+  const [destinationSprintId, setDestinationSprintId] = useState<string | null>(
+    null,
+  );
+  const stateColor: Record<SprintState, string> = {
+    [SprintState.Planned]: 'blue',
+    [SprintState.Active]: 'green',
+    [SprintState.Completed]: 'gray',
+  };
+
+  return (
+    <Table.Tr>
+      <Table.Td>
+        <Text fw={700} size="sm">
+          {sprint.name}
+        </Text>
+        <Text size="xs" c="dimmed" lineClamp={1}>
+          {sprint.goal ?? 'No goal'}
+        </Text>
+      </Table.Td>
+      <Table.Td>
+        <Badge color={stateColor[sprint.state]} variant="light">
+          {sprint.state}
+        </Badge>
+      </Table.Td>
+      <Table.Td>{sprint.capacityPoints ?? 'Unset'}</Table.Td>
+      <Table.Td>
+        {sprint.startDate ?? 'No start'} - {sprint.endDate ?? 'No end'}
+      </Table.Td>
+      <Table.Td>
+        {sprint.state === SprintState.Planned ? (
+          <Button size="compact-xs" disabled={pending} onClick={onStart}>
+            Start
+          </Button>
+        ) : sprint.state === SprintState.Active ? (
+          <Group gap="xs" wrap="nowrap">
+            <Select
+              clearable
+              placeholder="Backlog"
+              size="xs"
+              w={160}
+              data={destinationOptions}
+              value={destinationSprintId}
+              onChange={setDestinationSprintId}
+            />
+            <Button
+              size="compact-xs"
+              disabled={pending}
+              onClick={() => onComplete(destinationSprintId)}
+            >
+              Complete
+            </Button>
+          </Group>
+        ) : (
+          <Text size="sm" c="dimmed">
+            Complete
+          </Text>
+        )}
+      </Table.Td>
+    </Table.Tr>
+  );
+}
+
+function ChatPanel({ currentUser }: { currentUser: CurrentUser }) {
+  const queryClient = useQueryClient();
+  const [message, setMessage] = useState('');
+  const [streamedAnswer, setStreamedAnswer] = useState('');
+  const [streamError, setStreamError] = useState('');
+
+  const historyQuery = useQuery({
+    queryKey: ['chat-history', currentUser.id, currentUser.organizationId],
+    queryFn: () => apiClient.chatHistory({ limit: 30 }),
+  });
+
+  const refreshChatAndTasks = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['chat-history'] }),
+      queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+    ]);
+  };
+
+  const askMutation = useMutation({
+    mutationFn: async (text: string) => {
+      setStreamedAnswer('');
+      setStreamError('');
+      await apiClient.askChat({ message: text }, (event) => {
+        if (event.type === 'chunk') {
+          setStreamedAnswer((current) => `${current}${event.content}`);
+        }
+        if (event.type === 'error') {
+          setStreamError(event.message);
+        }
+      });
+    },
+    onSuccess: async () => {
+      setMessage('');
+      setStreamedAnswer('');
+      await refreshChatAndTasks();
+    },
+    onError: (error) => setStreamError(formatError(error)),
+  });
+
+  const confirmMutation = useMutation({
+    mutationFn: apiClient.confirmPendingChatAction,
+    onSuccess: refreshChatAndTasks,
+  });
+  const cancelMutation = useMutation({
+    mutationFn: apiClient.cancelPendingChatAction,
+    onSuccess: refreshChatAndTasks,
+  });
+
+  const messages = historyQuery.data?.items ?? [];
+  const actionPending = confirmMutation.isPending || cancelMutation.isPending;
+  const error =
+    streamError ||
+    formatError(
+      historyQuery.error ?? confirmMutation.error ?? cancelMutation.error,
+    );
+
+  return (
+    <Stack gap="lg">
+      <Group justify="space-between" align="flex-start" gap="md">
+        <Box>
+          <Title order={1}>AI Chat</Title>
+          <Text c="dimmed" mt={4}>
+            Ask about tasks or prepare task changes for confirmation.
+          </Text>
+        </Box>
+      </Group>
+
+      <Paper withBorder radius="md" p="md">
+        <Stack gap="md">
+          {historyQuery.isPending ? (
+            <Center py="xl">
+              <Loader />
+            </Center>
+          ) : messages.length ? (
+            messages.map((chatMessage) => (
+              <ChatMessageItem
+                key={chatMessage.id}
+                actionPending={actionPending}
+                message={chatMessage}
+                onCancel={(action) => cancelMutation.mutate(action.id)}
+                onConfirm={(action) => confirmMutation.mutate(action.id)}
+              />
+            ))
+          ) : (
+            <Text c="dimmed">No chat history</Text>
+          )}
+          {streamedAnswer ? (
+            <Paper withBorder radius="md" p="sm" className="task-card">
+              <Text size="xs" c="dimmed" mb={4}>
+                Assistant
+              </Text>
+              <Text size="sm">{streamedAnswer}</Text>
+            </Paper>
+          ) : null}
+        </Stack>
+      </Paper>
+
+      {error ? <Alert color="red">{error}</Alert> : null}
+
+      <Paper withBorder radius="md" p="md">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (message.trim()) {
+              askMutation.mutate(message.trim());
+            }
+          }}
+        >
+          <Stack gap="md">
+            <Textarea
+              autosize
+              label="Message"
+              maxLength={4000}
+              minRows={3}
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              required
+            />
+            <Group justify="flex-end">
+              <Button
+                leftSection={<Sparkles size={16} />}
+                loading={askMutation.isPending}
+                type="submit"
+              >
+                Send
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </Paper>
+    </Stack>
+  );
+}
+
+function ChatMessageItem({
+  actionPending,
+  message,
+  onCancel,
+  onConfirm,
+}: {
+  actionPending: boolean;
+  message: ChatMessage;
+  onCancel: (action: PendingChatAction) => void;
+  onConfirm: (action: PendingChatAction) => void;
+}) {
+  return (
+    <Paper withBorder radius="md" p="sm" className="task-card">
+      <Stack gap={8}>
+        <Group justify="space-between">
+          <Badge
+            color={message.role === 'assistant' ? 'blue' : 'gray'}
+            variant="light"
+          >
+            {message.role}
+          </Badge>
+          <Text size="xs" c="dimmed">
+            {new Date(message.createdAt).toLocaleString()}
+          </Text>
+        </Group>
+        <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
+          {message.content}
+        </Text>
+        {message.sources.length ? (
+          <Group gap="xs">
+            {message.sources.map((source) => (
+              <Badge key={source.taskId} variant="outline">
+                {source.title}
+              </Badge>
+            ))}
+          </Group>
+        ) : null}
+        {message.pendingAction?.status === 'pending' ? (
+          <Paper withBorder radius="md" p="sm">
+            <Group justify="space-between" gap="sm">
+              <Text size="sm" fw={700}>
+                {message.pendingAction.summary}
+              </Text>
+              <Group gap="xs">
+                <Button
+                  color="green"
+                  leftSection={<Check size={14} />}
+                  size="compact-xs"
+                  disabled={actionPending}
+                  onClick={() =>
+                    onConfirm(message.pendingAction as PendingChatAction)
+                  }
+                >
+                  Confirm
+                </Button>
+                <Button
+                  color="red"
+                  leftSection={<X size={14} />}
+                  size="compact-xs"
+                  variant="subtle"
+                  disabled={actionPending}
+                  onClick={() =>
+                    onCancel(message.pendingAction as PendingChatAction)
+                  }
+                >
+                  Cancel
+                </Button>
+              </Group>
+            </Group>
+          </Paper>
+        ) : null}
+      </Stack>
+    </Paper>
   );
 }
 
