@@ -7,7 +7,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { AuthActions } from '../../core/store/auth/auth.actions';
 import { selectError, selectLoading } from '../../core/store/auth/auth.reducer';
@@ -16,7 +16,7 @@ import { selectIsAuthenticated } from '../../core/store/auth/auth.selectors';
 @Component({
   selector: 'app-login-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section
@@ -76,12 +76,12 @@ import { selectIsAuthenticated } from '../../core/store/auth/auth.selectors';
                 for="password"
                 >Password</label
               >
-              <button
+              <a
                 class="font-label-sm text-label-sm text-primary transition-colors hover:text-surface-tint"
-                type="button"
+                routerLink="/forgot-password"
               >
                 Forgot password?
-              </button>
+              </a>
             </div>
             <div class="relative flex items-center">
               <span

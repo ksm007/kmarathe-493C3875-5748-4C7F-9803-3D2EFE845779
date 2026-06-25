@@ -1,4 +1,5 @@
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
@@ -185,6 +186,37 @@ describe('API integration', () => {
     await expect(
       authService.acceptInvitation(token, 'New Viewer', 'Password123!')
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('invalidates all active reset tokens after password reset', async () => {
+    const { ownerAuthUser } = await seedHierarchy();
+    const owner = await usersRepository.findOneByOrFail({ id: ownerAuthUser.id });
+    const firstToken = 'first-reset-token';
+    const secondToken = 'second-reset-token';
+
+    await passwordResetTokensRepository.save([
+      passwordResetTokensRepository.create({
+        userId: owner.id,
+        tokenHash: hashTestToken(firstToken),
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+        usedAt: null,
+      }),
+      passwordResetTokensRepository.create({
+        userId: owner.id,
+        tokenHash: hashTestToken(secondToken),
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+        usedAt: null,
+      }),
+    ]);
+
+    await authService.resetPassword(firstToken, 'NewPassword123!');
+
+    await expect(authService.login(owner.email, 'NewPassword123!')).resolves.toEqual(
+      expect.objectContaining({ accessToken: expect.any(String) })
+    );
+    await expect(authService.resetPassword(secondToken, 'OtherPassword123!')).rejects.toBeInstanceOf(
+      BadRequestException
+    );
   });
 
   it('blocks admins from inviting owners', async () => {
@@ -376,5 +408,9 @@ describe('API integration', () => {
         title,
       })
     );
+  }
+
+  function hashTestToken(raw: string) {
+    return crypto.createHash('sha256').update(raw).digest('hex');
   }
 });

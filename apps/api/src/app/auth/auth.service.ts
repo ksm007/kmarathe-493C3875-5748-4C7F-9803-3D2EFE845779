@@ -172,8 +172,11 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await this.usersRepo.update(record.userId, { passwordHash });
 
-    // Consume the token immediately (single-use per ADR 0012)
-    await this.resetTokensRepo.update(record.id, { usedAt: new Date() });
+    // Consume every active reset token for this user after a password change.
+    await this.resetTokensRepo.update(
+      { userId: record.userId, usedAt: IsNull() },
+      { usedAt: new Date() }
+    );
   }
 
   // ── Invite helpers (called by InvitationsService) ─────────────────────────

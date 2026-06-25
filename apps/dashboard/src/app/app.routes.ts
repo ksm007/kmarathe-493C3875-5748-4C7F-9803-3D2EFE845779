@@ -6,6 +6,8 @@ import { AiChatPageComponent } from './features/ai-chat/ai-chat-page.component';
 import { HeroPageComponent } from './features/hero/hero-page.component';
 import { AcceptInvitePageComponent } from './features/invitations/accept-invite-page.component';
 import { LoginPageComponent } from './features/login/login-page.component';
+import { ForgotPasswordPageComponent } from './features/password-reset/forgot-password-page.component';
+import { ResetPasswordPageComponent } from './features/password-reset/reset-password-page.component';
 import { StandupReportPageComponent } from './features/reports/standup-report-page.component';
 import { SignupPageComponent } from './features/signup/signup-page.component';
 import { SprintsPageComponent } from './features/sprints/sprints-page.component';
@@ -18,6 +20,8 @@ export const appRoutes: Route[] = [
   { path: 'login', component: LoginPageComponent },
   { path: 'signup', component: SignupPageComponent },
   { path: 'accept-invite', component: AcceptInvitePageComponent },
+  { path: 'forgot-password', component: ForgotPasswordPageComponent },
+  { path: 'reset-password', component: ResetPasswordPageComponent },
   { path: 'ai-chat', component: AiChatPageComponent, canActivate: [authGuard] },
   {
     path: 'tasks/:id',

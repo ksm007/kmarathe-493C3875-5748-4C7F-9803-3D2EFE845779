@@ -12,10 +12,12 @@ import {
   CreateTaskRequest,
   CreateTeamMemberRequest,
   CurrentUser,
+  ForgotPasswordRequest,
   InvitationResponse,
   LoginRequest,
   LoginResponse,
   RegisterRequest,
+  ResetPasswordRequest,
   Sprint,
   SprintQuery,
   TaskActivity,
@@ -42,6 +44,14 @@ export class ApiService {
 
   register(payload: RegisterRequest) {
     return this.http.post<LoginResponse>('/api/auth/register', payload);
+  }
+
+  forgotPassword(payload: ForgotPasswordRequest) {
+    return this.http.post<void>('/api/auth/forgot-password', payload);
+  }
+
+  resetPassword(payload: ResetPasswordRequest) {
+    return this.http.post<void>('/api/auth/reset-password', payload);
   }
 
   me() {
