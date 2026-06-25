@@ -27,7 +27,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { In, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import { AiService } from '../ai/ai.service';
 import { AuditService } from '../audit/audit.service';
 import {
@@ -50,6 +50,7 @@ const ALLOWED_ATTACHMENT_TYPES = new Set([
 ]);
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const FREE_PLAN_ATTACHMENT_BYTES = 100 * 1024 * 1024;
+const FREE_PLAN_OPEN_TASK_LIMIT = 500;
 
 export interface UploadedTaskAttachmentFile {
   originalname: string;
@@ -266,13 +267,17 @@ export class TasksService {
         status: payload.status ?? TaskStatus.Todo,
       },
     });
+    const status = payload.status ?? TaskStatus.Todo;
+    if (status !== TaskStatus.Done) {
+      await this.assertOpenTaskCapacity(organizationId);
+    }
 
     const task = this.tasksRepository.create({
       title: payload.title,
       description: payload.description ?? null,
       category: payload.category,
       priority: payload.priority ?? TaskPriority.Medium,
-      status: payload.status ?? TaskStatus.Todo,
+      status,
       issueType,
       storyPoints: payload.storyPoints ?? null,
       sprintId,
@@ -381,6 +386,10 @@ export class TasksService {
 
     if (payload.status !== undefined) {
       task.status = payload.status;
+    }
+
+    if (previousStatus === TaskStatus.Done && task.status !== TaskStatus.Done) {
+      await this.assertOpenTaskCapacity(task.organizationId);
     }
 
     if (payload.assigneeId !== undefined) {
@@ -1083,6 +1092,20 @@ export class TasksService {
     const usedBytes = Number(result?.bytes ?? 0);
     if (usedBytes + incomingBytes > FREE_PLAN_ATTACHMENT_BYTES) {
       throw new BadRequestException('Organization attachment storage limit reached');
+    }
+  }
+
+  private async assertOpenTaskCapacity(organizationId: string) {
+    const openTaskCount = await this.tasksRepository.count({
+      where: {
+        organizationId,
+        status: Not(TaskStatus.Done),
+      },
+    });
+    if (openTaskCount >= FREE_PLAN_OPEN_TASK_LIMIT) {
+      throw new BadRequestException(
+        `Organization has reached the ${FREE_PLAN_OPEN_TASK_LIMIT} open task free plan limit`,
+      );
     }
   }
 

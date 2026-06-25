@@ -321,6 +321,75 @@ describe('API integration', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('enforces the free plan open task limit but allows completed history', async () => {
+    const { ownerAuthUser } = await seedHierarchy();
+    const openTasks = Array.from({ length: 500 }, (_, index) =>
+      tasksRepository.create({
+        category: TaskCategory.Work,
+        createdById: ownerAuthUser.id,
+        description: `Open task ${index} description`,
+        organizationId: ownerAuthUser.organizationId,
+        position: index,
+        priority: TaskPriority.Medium,
+        status: TaskStatus.Todo,
+        title: `Open task ${index}`,
+      })
+    );
+    await tasksRepository.save(openTasks);
+
+    await expect(
+      tasksService.createTask(ownerAuthUser, {
+        title: 'Blocked open task',
+        category: TaskCategory.Work,
+        priority: TaskPriority.Medium,
+      })
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    await expect(
+      tasksService.createTask(ownerAuthUser, {
+        title: 'Completed history task',
+        category: TaskCategory.Work,
+        priority: TaskPriority.Medium,
+        status: TaskStatus.Done,
+      })
+    ).resolves.toEqual(expect.objectContaining({ status: TaskStatus.Done }));
+  });
+
+  it('blocks reopening completed tasks when open task capacity is full', async () => {
+    const { ownerAuthUser } = await seedHierarchy();
+    const openTasks = Array.from({ length: 500 }, (_, index) =>
+      tasksRepository.create({
+        category: TaskCategory.Work,
+        createdById: ownerAuthUser.id,
+        description: `Capacity task ${index} description`,
+        organizationId: ownerAuthUser.organizationId,
+        position: index,
+        priority: TaskPriority.Medium,
+        status: TaskStatus.Todo,
+        title: `Capacity task ${index}`,
+      })
+    );
+    await tasksRepository.save(openTasks);
+    const completedTask = await tasksRepository.save(
+      tasksRepository.create({
+        category: TaskCategory.Work,
+        createdById: ownerAuthUser.id,
+        description: 'Completed task description',
+        organizationId: ownerAuthUser.organizationId,
+        position: 501,
+        priority: TaskPriority.Medium,
+        status: TaskStatus.Done,
+        title: 'Completed task',
+      })
+    );
+
+    await expect(
+      tasksService.updateTask(ownerAuthUser, completedTask.id, {
+        status: TaskStatus.Todo,
+      })
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('blocks an admin from creating a task in a child organization outside scope', async () => {
     const { adminAuthUser, childOrganization } = await seedHierarchy();
 
