@@ -19,10 +19,14 @@ import type {
   SprintQuery,
   SwitchOrgRequest,
   Task,
+  TaskActivity,
+  TaskAttachment,
+  TaskDetail,
   TaskQuery,
   UpdateTaskRequest,
   UpdateSprintRequest,
   UserSummary,
+  AddTaskCommentRequest,
 } from '@nx-temp/data';
 import { getStoredSession } from './auth-storage';
 
@@ -65,9 +69,15 @@ async function request<TResponse>(
 }
 
 function createHeaders(init?: HeadersInit) {
+  const headers = createAuthHeaders(init);
+  headers.set('Content-Type', 'application/json');
+
+  return headers;
+}
+
+function createAuthHeaders(init?: HeadersInit) {
   const session = getStoredSession();
   const headers = new Headers(init);
-  headers.set('Content-Type', 'application/json');
 
   if (session?.accessToken) {
     headers.set('Authorization', `Bearer ${session.accessToken}`);
@@ -87,6 +97,23 @@ async function readPayload(response: Response) {
   } catch {
     return text;
   }
+}
+
+async function requestBlob(path: string): Promise<Blob> {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    headers: createAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    const payload = await readPayload(response);
+    throw new ApiClientError(
+      extractErrorMessage(payload) ?? `Request failed with ${response.status}`,
+      response.status,
+      payload,
+    );
+  }
+
+  return response.blob();
 }
 
 function extractErrorMessage(payload: unknown) {
@@ -156,6 +183,53 @@ export const apiClient = {
       method: 'PUT',
       body: JSON.stringify(payload),
     });
+  },
+
+  getTaskDetail(id: string) {
+    return request<TaskDetail>(`/tasks/${id}`);
+  },
+
+  addTaskComment(id: string, payload: AddTaskCommentRequest) {
+    return request<TaskActivity>(`/tasks/${id}/comments`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async uploadTaskAttachment(id: string, file: File) {
+    const body = new FormData();
+    body.set('file', file);
+
+    const response = await fetch(`${apiBaseUrl}/tasks/${id}/attachments`, {
+      method: 'POST',
+      headers: createAuthHeaders(),
+      body,
+    });
+
+    const payload = await readPayload(response);
+    if (!response.ok) {
+      throw new ApiClientError(
+        extractErrorMessage(payload) ??
+          `Request failed with ${response.status}`,
+        response.status,
+        payload,
+      );
+    }
+
+    return payload as TaskAttachment;
+  },
+
+  downloadTaskAttachment(taskId: string, attachmentId: string) {
+    return requestBlob(`/tasks/${taskId}/attachments/${attachmentId}/content`);
+  },
+
+  deleteTaskAttachment(taskId: string, attachmentId: string) {
+    return request<{ success: boolean }>(
+      `/tasks/${taskId}/attachments/${attachmentId}`,
+      {
+        method: 'DELETE',
+      },
+    );
   },
 
   deleteTask(id: string) {

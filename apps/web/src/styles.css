@@ -102,6 +102,16 @@ input {
   font-family: inherit;
 }
 
+.attachment-preview {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #f1f3f5;
+  color: #667085;
+}
+
 @media (max-width: 48em) {
   .auth-shell-grid {
     grid-template-columns: 1fr;
