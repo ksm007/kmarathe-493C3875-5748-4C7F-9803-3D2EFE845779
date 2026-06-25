@@ -10,6 +10,7 @@ import {
   PasswordResetTokenEntity,
   SprintEntity,
   TaskActivityEntity,
+  TaskAttachmentEntity,
   TaskEmbeddingEntity,
   TaskEntity,
   UserEntity,
@@ -21,6 +22,7 @@ import { IssueWorkflowFields1740000000000 } from './migrations/1740000000000-iss
 import { AcceptanceCriteria1750000000000 } from './migrations/1750000000000-acceptance-criteria';
 import { EpicChildIssues1760000000000 } from './migrations/1760000000000-epic-child-issues';
 import { Sprints1770000000000 } from './migrations/1770000000000-sprints';
+import { TaskAttachments1780000000000 } from './migrations/1780000000000-task-attachments';
 import { DataSourceOptions } from 'typeorm';
 
 export function buildDatabaseOptions(env: Pick<AppEnv, 'DATABASE_URL'>): DataSourceOptions {
@@ -39,6 +41,7 @@ export function buildDatabaseOptions(env: Pick<AppEnv, 'DATABASE_URL'>): DataSou
       SprintEntity,
       TaskEntity,
       TaskActivityEntity,
+      TaskAttachmentEntity,
       TaskEmbeddingEntity,
       AuditLogEntity,
       ChatMessageEntity,
@@ -53,6 +56,7 @@ export function buildDatabaseOptions(env: Pick<AppEnv, 'DATABASE_URL'>): DataSou
       AcceptanceCriteria1750000000000,
       EpicChildIssues1760000000000,
       Sprints1770000000000,
+      TaskAttachments1780000000000,
     ],
     synchronize: false,
     logging: false,

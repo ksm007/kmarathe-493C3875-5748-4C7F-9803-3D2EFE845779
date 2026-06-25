@@ -9,6 +9,7 @@ import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { OrganizationEntity } from './organization.entity';
 import { SprintEntity } from './sprint.entity';
 import { TaskActivityEntity } from './task-activity.entity';
+import { TaskAttachmentEntity } from './task-attachment.entity';
 import { UserEntity } from './user.entity';
 
 @Entity({ name: 'tasks' })
@@ -96,4 +97,7 @@ export class TaskEntity extends BaseEntity {
 
   @OneToMany(() => TaskActivityEntity, (activity) => activity.task)
   activities!: TaskActivityEntity[];
+
+  @OneToMany(() => TaskAttachmentEntity, (attachment) => attachment.task)
+  attachments!: TaskAttachmentEntity[];
 }

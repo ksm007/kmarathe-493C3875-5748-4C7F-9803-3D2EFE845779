@@ -13,6 +13,7 @@ import {
   MembershipEntity,
   OrganizationEntity,
   SprintEntity,
+  TaskAttachmentEntity,
   TaskEntity,
   UserEntity,
 } from '../app/database/entities';
@@ -24,6 +25,7 @@ async function seed() {
   const usersRepo = apiDataSource.getRepository(UserEntity);
   const membershipsRepo = apiDataSource.getRepository(MembershipEntity);
   const sprintsRepo = apiDataSource.getRepository(SprintEntity);
+  apiDataSource.getRepository(TaskAttachmentEntity);
   const tasksRepo = apiDataSource.getRepository(TaskEntity);
 
   await apiDataSource.query(`
@@ -34,6 +36,7 @@ async function seed() {
       "audit_logs",
       "task_embeddings",
       "task_activities",
+      "task_attachments",
       "invitations",
       "password_reset_tokens",
       "memberships",

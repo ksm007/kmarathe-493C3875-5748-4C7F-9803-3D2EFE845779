@@ -8,6 +8,7 @@ import {
   Task,
   TaskActivity,
   TaskActivityType,
+  TaskAttachment,
   TaskCategory,
   TaskDetail,
   TaskPriority,
@@ -33,12 +34,29 @@ import {
   OrganizationEntity,
   SprintEntity,
   TaskActivityEntity,
+  TaskAttachmentEntity,
   TaskEmbeddingEntity,
   TaskEntity,
   UserEntity,
 } from '../database/entities';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { AttachmentStorageService } from './attachment-storage.service';
 import { CreateTaskDto } from './dto/create-task.dto';
+
+const ALLOWED_ATTACHMENT_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+]);
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const FREE_PLAN_ATTACHMENT_BYTES = 100 * 1024 * 1024;
+
+export interface UploadedTaskAttachmentFile {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+}
 
 @Injectable()
 export class TasksService {
@@ -55,11 +73,14 @@ export class TasksService {
     private readonly usersRepository: Repository<UserEntity>,
     @InjectRepository(TaskActivityEntity)
     private readonly taskActivitiesRepository: Repository<TaskActivityEntity>,
+    @InjectRepository(TaskAttachmentEntity)
+    private readonly taskAttachmentsRepository: Repository<TaskAttachmentEntity>,
     @InjectRepository(TaskEmbeddingEntity)
     private readonly taskEmbeddingsRepository: Repository<TaskEmbeddingEntity>,
     private readonly organizationsService: OrganizationsService,
     private readonly auditService: AuditService,
     private readonly aiService: AiService,
+    private readonly attachmentStorage: AttachmentStorageService,
   ) {}
 
   async listTasks(user: AuthenticatedUser, query: TaskQuery): Promise<Task[]> {
@@ -167,10 +188,18 @@ export class TasksService {
       relations: { actor: true },
       order: { createdAt: 'ASC' },
     });
+    const attachments = await this.taskAttachmentsRepository.find({
+      where: { taskId },
+      relations: { uploadedBy: true },
+      order: { createdAt: 'ASC' },
+    });
 
     return {
       ...this.toTask(task),
       activities: activities.map((activity) => this.toTaskActivity(activity)),
+      attachments: attachments.map((attachment) =>
+        this.toTaskAttachment(attachment),
+      ),
     };
   }
 
@@ -586,6 +615,109 @@ export class TasksService {
     return this.toTaskActivity(activity);
   }
 
+  async addAttachment(
+    user: AuthenticatedUser,
+    taskId: string,
+    file: UploadedTaskAttachmentFile | undefined,
+  ): Promise<TaskAttachment> {
+    const task = await this.getTaskForMutation(user, taskId, 'tasks.attach');
+    if (!file) {
+      throw new BadRequestException('Attachment file is required');
+    }
+    this.assertImageAttachment(file);
+    await this.assertAttachmentCapacity(task.organizationId, file.size);
+
+    const attachment = this.taskAttachmentsRepository.create({
+      taskId,
+      organizationId: task.organizationId,
+      uploadedById: user.id,
+      fileName: this.normalizeFileName(file.originalname),
+      contentType: file.mimetype,
+      byteSize: file.size,
+      storageKey: [
+        task.organizationId,
+        task.id,
+        `${randomUUID()}-${this.normalizeFileName(file.originalname)}`,
+      ].join('/'),
+    });
+
+    await this.attachmentStorage.save(attachment.storageKey, file.buffer);
+    const saved = await this.taskAttachmentsRepository.save(attachment);
+
+    await this.auditService.log({
+      actor: user,
+      action: 'tasks.attach',
+      resource: 'task_attachment',
+      resourceId: saved.id,
+      organizationId: task.organizationId,
+      allowed: true,
+      metadata: {
+        taskId,
+        byteSize: saved.byteSize,
+        contentType: saved.contentType,
+      },
+    });
+
+    const hydrated = await this.taskAttachmentsRepository.findOne({
+      where: { id: saved.id },
+      relations: { uploadedBy: true },
+    });
+
+    return this.toTaskAttachment(hydrated ?? saved);
+  }
+
+  async getAttachmentContent(
+    user: AuthenticatedUser,
+    taskId: string,
+    attachmentId: string,
+  ) {
+    const task = await this.loadTaskWithRelations(taskId);
+    const accessibleOrganizationIds =
+      await this.getAccessibleOrganizationIds(user);
+
+    if (!task || !this.canReadTask(user, task, accessibleOrganizationIds)) {
+      throw new NotFoundException('Task not found');
+    }
+
+    const attachment = await this.taskAttachmentsRepository.findOne({
+      where: { id: attachmentId, taskId },
+    });
+    if (!attachment) {
+      throw new NotFoundException('Attachment not found');
+    }
+
+    return {
+      attachment: this.toTaskAttachment(attachment),
+      stream: this.attachmentStorage.createReadStream(attachment.storageKey),
+    };
+  }
+
+  async deleteAttachment(
+    user: AuthenticatedUser,
+    taskId: string,
+    attachmentId: string,
+  ): Promise<void> {
+    const task = await this.getTaskForMutation(user, taskId, 'tasks.detach');
+    const attachment = await this.taskAttachmentsRepository.findOne({
+      where: { id: attachmentId, taskId },
+    });
+    if (!attachment) {
+      throw new NotFoundException('Attachment not found');
+    }
+
+    await this.taskAttachmentsRepository.remove(attachment);
+    await this.attachmentStorage.remove(attachment.storageKey);
+    await this.auditService.log({
+      actor: user,
+      action: 'tasks.detach',
+      resource: 'task_attachment',
+      resourceId: attachmentId,
+      organizationId: task.organizationId,
+      allowed: true,
+      metadata: { taskId },
+    });
+  }
+
   async findBestTaskMatch(
     user: AuthenticatedUser,
     hint: string,
@@ -927,6 +1059,42 @@ export class TasksService {
       .slice(0, 20);
   }
 
+  private assertImageAttachment(file: UploadedTaskAttachmentFile) {
+    if (!ALLOWED_ATTACHMENT_TYPES.has(file.mimetype)) {
+      throw new BadRequestException('Only PNG, JPEG, and WebP images are supported');
+    }
+    if (file.size <= 0) {
+      throw new BadRequestException('Attachment file is empty');
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      throw new BadRequestException('Attachment file exceeds 10 MB');
+    }
+  }
+
+  private async assertAttachmentCapacity(
+    organizationId: string,
+    incomingBytes: number,
+  ) {
+    const result = await this.taskAttachmentsRepository
+      .createQueryBuilder('attachment')
+      .select('COALESCE(SUM(attachment.byteSize), 0)', 'bytes')
+      .where('attachment.organizationId = :organizationId', { organizationId })
+      .getRawOne<{ bytes: string }>();
+    const usedBytes = Number(result?.bytes ?? 0);
+    if (usedBytes + incomingBytes > FREE_PLAN_ATTACHMENT_BYTES) {
+      throw new BadRequestException('Organization attachment storage limit reached');
+    }
+  }
+
+  private normalizeFileName(fileName: string) {
+    const normalized = fileName
+      .trim()
+      .replace(/[/\\]/g, '-')
+      .replace(/[^a-zA-Z0-9._ -]/g, '')
+      .slice(0, 120);
+    return normalized || 'attachment';
+  }
+
   private async recordActivity(
     task: TaskEntity,
     actor: AuthenticatedUser,
@@ -1003,6 +1171,20 @@ export class TasksService {
       message: activity.message,
       metadata: activity.metadata,
       createdAt: activity.createdAt.toISOString(),
+    };
+  }
+
+  private toTaskAttachment(attachment: TaskAttachmentEntity): TaskAttachment {
+    return {
+      id: attachment.id,
+      taskId: attachment.taskId,
+      organizationId: attachment.organizationId,
+      uploadedById: attachment.uploadedById,
+      uploadedByName: attachment.uploadedBy?.fullName ?? null,
+      fileName: attachment.fileName,
+      contentType: attachment.contentType,
+      byteSize: attachment.byteSize,
+      createdAt: attachment.createdAt.toISOString(),
     };
   }
 }

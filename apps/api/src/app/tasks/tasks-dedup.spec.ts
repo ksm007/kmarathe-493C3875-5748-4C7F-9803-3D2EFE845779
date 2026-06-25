@@ -96,6 +96,14 @@ function makeService(storedTasks: Array<{ id: string; title: string; description
       create: jest.fn().mockImplementation((v: unknown) => v),
       save: jest.fn().mockImplementation((v: unknown) => Promise.resolve(v)),
     } as never,
+    // taskAttachmentsRepository
+    {
+      createQueryBuilder: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getRawOne: jest.fn().mockResolvedValue({ bytes: '0' }),
+      }),
+    } as never,
     // taskEmbeddingsRepository
     { find: jest.fn().mockResolvedValue(embeddings) } as never,
     // organizationsService
@@ -104,6 +112,8 @@ function makeService(storedTasks: Array<{ id: string; title: string; description
     { log: jest.fn() } as never,
     // aiService
     { syncTaskEmbedding: jest.fn() } as never,
+    // attachmentStorage
+    { save: jest.fn(), remove: jest.fn(), createReadStream: jest.fn() } as never,
   );
 }
 

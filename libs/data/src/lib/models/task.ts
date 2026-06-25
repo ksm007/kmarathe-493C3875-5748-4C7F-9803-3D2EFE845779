@@ -78,6 +78,18 @@ export interface AcceptanceCriteriaItem {
   completed: boolean;
 }
 
+export interface TaskAttachment {
+  id: string;
+  taskId: string;
+  organizationId: string;
+  uploadedById: string;
+  uploadedByName: string | null;
+  fileName: string;
+  contentType: string;
+  byteSize: number;
+  createdAt: string;
+}
+
 export enum TaskActivityType {
   TaskCreated = 'task_created',
   TaskUpdated = 'task_updated',
@@ -102,4 +114,5 @@ export interface TaskActivity {
 
 export interface TaskDetail extends Task {
   activities: TaskActivity[];
+  attachments: TaskAttachment[];
 }

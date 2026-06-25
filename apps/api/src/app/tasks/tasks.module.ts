@@ -6,11 +6,13 @@ import {
   OrganizationEntity,
   SprintEntity,
   TaskActivityEntity,
+  TaskAttachmentEntity,
   TaskEmbeddingEntity,
   TaskEntity,
   UserEntity,
 } from '../database/entities';
 import { OrganizationsModule } from '../organizations/organizations.module';
+import { AttachmentStorageService } from './attachment-storage.service';
 import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
 
@@ -22,6 +24,7 @@ import { TasksService } from './tasks.service';
       SprintEntity,
       UserEntity,
       TaskActivityEntity,
+      TaskAttachmentEntity,
       TaskEmbeddingEntity,
     ]),
     AiModule,
@@ -29,7 +32,7 @@ import { TasksService } from './tasks.service';
     AuditModule,
   ],
   controllers: [TasksController],
-  providers: [TasksService],
+  providers: [TasksService, AttachmentStorageService],
   exports: [TasksService],
 })
 export class TasksModule {}

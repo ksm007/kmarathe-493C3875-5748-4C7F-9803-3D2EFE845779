@@ -22,6 +22,7 @@ import {
   PasswordResetTokenEntity,
   SprintEntity,
   TaskActivityEntity,
+  TaskAttachmentEntity,
   TaskEmbeddingEntity,
   TaskEntity,
   UserEntity,
@@ -29,6 +30,7 @@ import {
 import { EmailService } from './email/email.service';
 import { InvitationsService } from './invitations/invitations.service';
 import { OrganizationsService } from './organizations/organizations.service';
+import { AttachmentStorageService } from './tasks/attachment-storage.service';
 import { TasksService } from './tasks/tasks.service';
 import { UsersService } from './users/users.service';
 
@@ -43,6 +45,7 @@ describe('API integration', () => {
   let tasksRepository: Repository<TaskEntity>;
   let auditRepository: Repository<AuditLogEntity>;
   let taskActivitiesRepository: Repository<TaskActivityEntity>;
+  let taskAttachmentsRepository: Repository<TaskAttachmentEntity>;
   let taskEmbeddingsRepository: Repository<TaskEmbeddingEntity>;
   let llmInteractionsRepository: Repository<LlmInteractionEntity>;
   let chatMessagesRepository: Repository<ChatMessageEntity>;
@@ -72,6 +75,7 @@ describe('API integration', () => {
         SprintEntity,
         TaskEntity,
         TaskActivityEntity,
+        TaskAttachmentEntity,
         TaskEmbeddingEntity,
         AuditLogEntity,
         ChatMessageEntity,
@@ -91,6 +95,7 @@ describe('API integration', () => {
     tasksRepository = dataSource.getRepository(TaskEntity);
     auditRepository = dataSource.getRepository(AuditLogEntity);
     taskActivitiesRepository = dataSource.getRepository(TaskActivityEntity);
+    taskAttachmentsRepository = dataSource.getRepository(TaskAttachmentEntity);
     taskEmbeddingsRepository = dataSource.getRepository(TaskEmbeddingEntity);
     llmInteractionsRepository = dataSource.getRepository(LlmInteractionEntity);
     chatMessagesRepository = dataSource.getRepository(ChatMessageEntity);
@@ -137,10 +142,12 @@ describe('API integration', () => {
       sprintsRepository,
       usersRepository,
       taskActivitiesRepository,
+      taskAttachmentsRepository,
       taskEmbeddingsRepository,
       organizationsService,
       auditService,
-      aiService
+      aiService,
+      new AttachmentStorageService(new ConfigService({ ATTACHMENT_STORAGE_DIR: '/tmp/turbo-vets-test-attachments' }))
     );
     chatService = new ChatService(
       chatMessagesRepository,
@@ -268,6 +275,50 @@ describe('API integration', () => {
 
     expect(sprintTasks.map((task) => task.title)).toEqual(['Sprint task']);
     expect(backlogTasks.map((task) => task.title)).toEqual(['Backlog task']);
+  });
+
+  it('stores image-only task attachments in task detail', async () => {
+    const { ownerAuthUser } = await seedHierarchy();
+    const task = await tasksService.createTask(ownerAuthUser, {
+      title: 'Attach screenshot',
+      category: TaskCategory.Work,
+      priority: TaskPriority.Medium,
+    });
+
+    const attachment = await tasksService.addAttachment(ownerAuthUser, task.id, {
+      originalname: 'screen.png',
+      mimetype: 'image/png',
+      size: 8,
+      buffer: Buffer.from('png-data'),
+    });
+    const detail = await tasksService.getTaskDetail(ownerAuthUser, task.id);
+
+    expect(attachment.fileName).toBe('screen.png');
+    expect(detail.attachments).toEqual([
+      expect.objectContaining({
+        id: attachment.id,
+        contentType: 'image/png',
+        byteSize: 8,
+      }),
+    ]);
+  });
+
+  it('rejects non-image task attachments', async () => {
+    const { ownerAuthUser } = await seedHierarchy();
+    const task = await tasksService.createTask(ownerAuthUser, {
+      title: 'Attach document',
+      category: TaskCategory.Work,
+      priority: TaskPriority.Medium,
+    });
+
+    await expect(
+      tasksService.addAttachment(ownerAuthUser, task.id, {
+        originalname: 'notes.pdf',
+        mimetype: 'application/pdf',
+        size: 8,
+        buffer: Buffer.from('pdf-data'),
+      })
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('blocks an admin from creating a task in a child organization outside scope', async () => {
