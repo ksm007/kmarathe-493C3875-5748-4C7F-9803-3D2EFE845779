@@ -11,10 +11,10 @@ import {
 } from '@nx-temp/ai';
 import { AuthenticatedUser, canAccessOrganization } from '@nx-temp/auth';
 import { ChatSource, Role, Task, TaskActivityType, TaskStatus } from '@nx-temp/data';
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThanOrEqual, Repository } from 'typeorm';
 import {
   LlmInteractionEntity,
   TaskActivityEntity,
@@ -25,6 +25,8 @@ import { OrganizationsService } from '../organizations/organizations.service';
 
 @Injectable()
 export class AiService {
+  private static readonly FREE_PLAN_AI_CALLS_PER_DAY = 3;
+  private static readonly CHAT_OPERATION = 'chat.ask';
   private readonly logger = new Logger(AiService.name);
   private readonly canaryToken: string;
 
@@ -122,6 +124,8 @@ export class AiService {
     sources: ChatSource[];
     promptInjectionDetected: boolean;
   }> {
+    await this.assertDailyAiCallAllowed(user.id);
+
     const { sanitized, injectionDetected } = this.sanitizeInput(rawMessage);
     const scopedEmbeddings = await this.getScopedEmbeddings(user);
     const queryEmbedding = await this.createEmbedding(sanitized);
@@ -170,7 +174,7 @@ export class AiService {
 
     await this.logInteraction({
       userId: user.id,
-      operation: 'chat.ask',
+      operation: AiService.CHAT_OPERATION,
       inputPreview: sanitized,
       outputPreview: answer,
       canaryTriggered: hasCanaryLeak(answer, this.canaryToken),
@@ -351,6 +355,26 @@ export class AiService {
     }
 
     return `Here are the most relevant tasks:\n\n${tasks.map(formatTask).join('\n')}`;
+  }
+
+  private async assertDailyAiCallAllowed(userId: string) {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const aiCallsToday = await this.llmInteractionsRepository.count({
+      where: {
+        userId,
+        operation: AiService.CHAT_OPERATION,
+        createdAt: MoreThanOrEqual(today),
+      },
+    });
+
+    if (aiCallsToday >= AiService.FREE_PLAN_AI_CALLS_PER_DAY) {
+      throw new HttpException(
+        `User has reached the ${AiService.FREE_PLAN_AI_CALLS_PER_DAY} AI calls per day free plan limit`,
+        HttpStatus.TOO_MANY_REQUESTS
+      );
+    }
   }
 
   private async logInteraction(params: {

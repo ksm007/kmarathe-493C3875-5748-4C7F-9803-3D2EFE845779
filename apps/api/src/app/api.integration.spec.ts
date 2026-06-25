@@ -2,7 +2,7 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { newDb } from 'pg-mem';
 import { DataSource, Repository } from 'typeorm';
 import { Role, SprintState, TaskCategory, TaskPriority, TaskStatus } from '@nx-temp/data';
@@ -471,6 +471,32 @@ describe('API integration', () => {
     expect(createdTask?.status).toBe(TaskStatus.InProgress);
   });
 
+  it('enforces the daily free plan AI call limit per user', async () => {
+    const { ownerAuthUser } = await seedHierarchy();
+    await seedLlmInteractions(ownerAuthUser.id, 3, new Date());
+
+    await expect(chatService.ask(ownerAuthUser, 'Which tasks need attention?')).rejects.toMatchObject({
+      status: HttpStatus.TOO_MANY_REQUESTS,
+    });
+
+    await expect(llmInteractionsRepository.countBy({ userId: ownerAuthUser.id })).resolves.toBe(3);
+  });
+
+  it('does not count previous-day AI calls against today', async () => {
+    const { ownerAuthUser } = await seedHierarchy();
+    const yesterday = new Date();
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    await seedLlmInteractions(ownerAuthUser.id, 3, yesterday);
+
+    await expect(chatService.ask(ownerAuthUser, 'Which tasks need attention?')).resolves.toEqual(
+      expect.objectContaining({
+        pendingAction: null,
+      })
+    );
+
+    await expect(llmInteractionsRepository.countBy({ userId: ownerAuthUser.id })).resolves.toBe(4);
+  });
+
   async function seedHierarchy() {
     const parentOrganization = await organizationsRepository.save(
       organizationsRepository.create({ level: 1, name: 'Acme HQ', parentOrganizationId: null, slug: 'acme-hq' })
@@ -532,5 +558,25 @@ describe('API integration', () => {
 
   function hashTestToken(raw: string) {
     return crypto.createHash('sha256').update(raw).digest('hex');
+  }
+
+  async function seedLlmInteractions(userId: string, count: number, createdAt: Date) {
+    const entries = Array.from({ length: count }, (_, index) =>
+      llmInteractionsRepository.create({
+        userId,
+        operation: 'chat.ask',
+        provider: 'local',
+        model: 'local-grounded',
+        inputPreview: `Question ${index}`,
+        outputPreview: `Answer ${index}`,
+        canaryTriggered: false,
+        blockedReason: null,
+        metadata: null,
+        createdAt,
+        updatedAt: createdAt,
+      })
+    );
+
+    await llmInteractionsRepository.save(entries);
   }
 });
