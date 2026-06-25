@@ -91,6 +91,25 @@ export class ApiService {
     });
   }
 
+  addTaskAttachment(id: string, file: File) {
+    const formData = new FormData();
+    formData.set('file', file);
+    return this.http.post<TaskDetail['attachments'][number]>(
+      `/api/tasks/${id}/attachments`,
+      formData,
+    );
+  }
+
+  deleteTaskAttachment(id: string, attachmentId: string) {
+    return this.http.delete<{ success: boolean }>(
+      `/api/tasks/${id}/attachments/${attachmentId}`,
+    );
+  }
+
+  taskAttachmentContentUrl(id: string, attachmentId: string) {
+    return `/api/tasks/${id}/attachments/${attachmentId}/content`;
+  }
+
   reorderTasks(payload: ReorderTasksRequest) {
     return this.http.patch<Task[]>('/api/tasks/reorder', payload);
   }

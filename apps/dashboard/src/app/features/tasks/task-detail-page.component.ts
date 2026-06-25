@@ -74,6 +74,87 @@ import { ApiService } from '../../core/services/api.service';
           </div>
 
           <div class="mt-6">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 class="font-label-lg text-on-surface">Attachments</h2>
+                <p class="mt-1 text-xs text-on-surface-variant">
+                  PNG, JPEG, and WebP images only.
+                </p>
+              </div>
+              <label
+                *ngIf="canComment()"
+                class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-outline-variant px-4 py-2.5 text-sm font-semibold text-on-surface transition hover:bg-surface-container-low"
+              >
+                <span class="material-symbols-outlined text-[18px]">upload</span>
+                {{ uploadingAttachment() ? 'Uploading...' : 'Upload image' }}
+                <input
+                  class="hidden"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  [disabled]="uploadingAttachment()"
+                  (change)="uploadAttachment($event)"
+                />
+              </label>
+            </div>
+
+            <p
+              *ngIf="attachmentError()"
+              class="mt-3 rounded-lg border border-error/40 bg-error-container px-md py-sm text-body-sm text-on-error-container"
+            >
+              {{ attachmentError() }}
+            </p>
+
+            <div
+              *ngIf="task()!.attachments.length > 0; else noAttachments"
+              class="mt-4 grid gap-4 sm:grid-cols-2"
+            >
+              <article
+                *ngFor="let attachment of task()!.attachments"
+                class="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-low"
+              >
+                <a
+                  class="block bg-surface-container"
+                  [href]="attachmentUrl(attachment.id)"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <img
+                    class="h-44 w-full object-cover"
+                    [alt]="attachment.fileName"
+                    [src]="attachmentUrl(attachment.id)"
+                  />
+                </a>
+                <div class="flex items-center justify-between gap-3 p-3">
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-medium text-on-surface">
+                      {{ attachment.fileName }}
+                    </p>
+                    <p class="mt-1 text-xs text-on-surface-variant">
+                      {{ formatBytes(attachment.byteSize) }} ·
+                      {{ relativeTimestamp(attachment.createdAt) }}
+                    </p>
+                  </div>
+                  <button
+                    *ngIf="canComment()"
+                    class="taskcore-danger-button"
+                    type="button"
+                    [disabled]="uploadingAttachment()"
+                    (click)="deleteAttachment(attachment.id)"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </article>
+            </div>
+
+            <ng-template #noAttachments>
+              <p class="mt-3 text-sm text-on-surface-variant">
+                No image attachments yet.
+              </p>
+            </ng-template>
+          </div>
+
+          <div class="mt-6">
             <div class="flex items-center justify-between gap-3">
               <h2 class="font-label-lg text-on-surface">Acceptance Criteria</h2>
               <span class="text-xs text-on-surface-variant">
@@ -169,6 +250,8 @@ export class TaskDetailPageComponent {
 
   readonly task = signal<TaskDetail | null>(null);
   readonly error = signal<string | null>(null);
+  readonly attachmentError = signal<string | null>(null);
+  readonly uploadingAttachment = signal(false);
   readonly user = this.store.selectSignal(selectUser);
   readonly canComment = computed(() => this.user()?.role !== Role.Viewer);
   readonly completedCriteriaCount = computed(
@@ -209,8 +292,7 @@ export class TaskDetailPageComponent {
 
     try {
       await firstValueFrom(this.api.addTaskComment(task.id, this.commentForm.getRawValue().message));
-      const refreshed = await firstValueFrom(this.api.getTaskDetail(task.id));
-      this.task.set(refreshed ?? null);
+      await this.refreshTask(task.id);
       this.commentForm.reset({ message: '' });
     } catch {
       this.error.set('Unable to add comment.');
@@ -247,6 +329,50 @@ export class TaskDetailPageComponent {
     this.criteriaForm.reset({ text: '' });
   }
 
+  async uploadAttachment(event: Event) {
+    const task = this.task();
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!task || !file || !this.canComment()) {
+      return;
+    }
+
+    this.attachmentError.set(null);
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      this.attachmentError.set('Only PNG, JPEG, and WebP images are supported.');
+      return;
+    }
+
+    this.uploadingAttachment.set(true);
+    try {
+      await firstValueFrom(this.api.addTaskAttachment(task.id, file));
+      await this.refreshTask(task.id);
+    } catch {
+      this.attachmentError.set('Unable to upload image attachment.');
+    } finally {
+      this.uploadingAttachment.set(false);
+    }
+  }
+
+  async deleteAttachment(attachmentId: string) {
+    const task = this.task();
+    if (!task || !this.canComment()) {
+      return;
+    }
+
+    this.attachmentError.set(null);
+    this.uploadingAttachment.set(true);
+    try {
+      await firstValueFrom(this.api.deleteTaskAttachment(task.id, attachmentId));
+      await this.refreshTask(task.id);
+    } catch {
+      this.attachmentError.set('Unable to delete image attachment.');
+    } finally {
+      this.uploadingAttachment.set(false);
+    }
+  }
+
   labelForActivity(type: TaskActivityType) {
     switch (type) {
       case TaskActivityType.TaskCreated:
@@ -280,11 +406,30 @@ export class TaskDetailPageComponent {
           acceptanceCriteria,
         }),
       );
-      const refreshed = await firstValueFrom(this.api.getTaskDetail(task.id));
-      this.task.set(refreshed ?? null);
+      await this.refreshTask(task.id);
     } catch {
       this.error.set('Unable to update acceptance criteria.');
     }
+  }
+
+  private async refreshTask(taskId: string) {
+    const refreshed = await firstValueFrom(this.api.getTaskDetail(taskId));
+    this.task.set(refreshed ?? null);
+  }
+
+  attachmentUrl(attachmentId: string) {
+    const task = this.task();
+    return task ? this.api.taskAttachmentContentUrl(task.id, attachmentId) : '';
+  }
+
+  formatBytes(bytes: number) {
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    }
+    if (bytes < 1024 * 1024) {
+      return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   }
 
   relativeTimestamp(value: string) {
