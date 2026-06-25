@@ -1,48 +1,82 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
-  Anchor,
+  Badge,
   Box,
   Button,
-  Card,
   Center,
   Container,
   Group,
-  List,
+  Loader,
   Paper,
   PasswordInput,
   SegmentedControl,
+  Select,
   SimpleGrid,
   Stack,
+  Table,
   Text,
   TextInput,
   ThemeIcon,
   Title,
 } from '@mantine/core';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import type { LoginRequest, RegisterRequest } from '@nx-temp/data';
+import type { CurrentUser, LoginRequest, RegisterRequest, Task, TaskQuery } from '@nx-temp/data';
+import { TaskCategory, TaskPriority, TaskStatus } from '@nx-temp/data';
 import {
   ArrowRight,
   Building2,
-  CheckCircle2,
   ClipboardList,
+  LayoutDashboard,
+  ListChecks,
   Loader2,
+  LogOut,
   Mail,
+  Search,
   ShieldCheck,
   Sparkles,
   Users,
 } from 'lucide-react';
 import { apiClient, ApiClientError } from '~/lib/api-client';
-import { saveSession } from '~/lib/auth-storage';
+import { clearSession, getStoredSession, saveSession } from '~/lib/auth-storage';
 
 type AuthMode = 'login' | 'signup';
+type ViewMode = 'board' | 'list';
+
+const statusColumns = [
+  { status: TaskStatus.Backlog, label: 'Backlog', color: 'gray' },
+  { status: TaskStatus.Todo, label: 'Todo', color: 'blue' },
+  { status: TaskStatus.InProgress, label: 'In progress', color: 'yellow' },
+  { status: TaskStatus.InReview, label: 'Review', color: 'violet' },
+  { status: TaskStatus.Done, label: 'Done', color: 'green' },
+] as const;
+
+const priorityColor: Record<TaskPriority, string> = {
+  [TaskPriority.Low]: 'gray',
+  [TaskPriority.Medium]: 'blue',
+  [TaskPriority.High]: 'red',
+};
 
 export const Route = createFileRoute('/')({
-  component: AuthLandingPage,
+  component: HomeRoute,
 });
 
-function AuthLandingPage() {
+function HomeRoute() {
+  const [sessionUser, setSessionUser] = useState<CurrentUser | null>(null);
+
+  useEffect(() => {
+    setSessionUser(getStoredSession()?.user ?? null);
+  }, []);
+
+  if (sessionUser) {
+    return <TaskWorkspace initialUser={sessionUser} onSignedOut={() => setSessionUser(null)} />;
+  }
+
+  return <AuthLandingPage onAuthenticated={setSessionUser} />;
+}
+
+function AuthLandingPage({ onAuthenticated }: { onAuthenticated: (user: CurrentUser) => void }) {
   const [mode, setMode] = useState<AuthMode>('login');
   const [loginForm, setLoginForm] = useState<LoginRequest>({
     email: 'owner@acme.test',
@@ -54,15 +88,12 @@ function AuthLandingPage() {
     email: '',
     password: '',
   });
-  const [sessionSummary, setSessionSummary] = useState<string | null>(null);
 
   const loginMutation = useMutation({
     mutationFn: apiClient.login,
     onSuccess: (session) => {
       saveSession(session);
-      setSessionSummary(
-        `${session.user.fullName} signed in to ${session.user.organizationName}`,
-      );
+      onAuthenticated(session.user);
     },
   });
 
@@ -70,9 +101,7 @@ function AuthLandingPage() {
     mutationFn: apiClient.register,
     onSuccess: (session) => {
       saveSession(session);
-      setSessionSummary(
-        `${session.user.fullName} created ${session.user.organizationName}`,
-      );
+      onAuthenticated(session.user);
     },
   });
 
@@ -83,239 +112,183 @@ function AuthLandingPage() {
       return null;
     }
 
-    return error instanceof ApiClientError
-      ? error.message
-      : 'Something went wrong. Try again.';
+    return error instanceof ApiClientError ? error.message : 'Something went wrong. Try again.';
   }, [loginMutation.error, signupMutation.error]);
 
   return (
     <Box className="auth-page">
       <Container size="xl" py={{ base: 'md', md: 'xl' }}>
-        <Paper withBorder shadow="xl" radius="lg" className="auth-shell">
+        <Paper withBorder shadow="xl" radius="md" className="auth-shell">
           <Box className="auth-shell-grid">
-            <Box>
-              <Box className="auth-panel">
-                <Stack justify="space-between" h="100%" gap="xl">
-                  <Group gap="sm">
-                    <ThemeIcon size={44} radius="md" color="gray.0" c="dark.8">
-                      <ClipboardList size={22} aria-hidden="true" />
-                    </ThemeIcon>
+            <Box className="auth-panel">
+              <Stack justify="space-between" h="100%" gap="xl">
+                <Group gap="sm">
+                  <ThemeIcon size={44} radius="md" color="gray.0" c="dark.8">
+                    <ClipboardList size={22} aria-hidden="true" />
+                  </ThemeIcon>
+                  <Box>
+                    <Text size="xs" fw={700} tt="uppercase" c="blue.1">
+                      Turbo Vets
+                    </Text>
+                    <Text size="sm" c="gray.4">
+                      SaaS work management
+                    </Text>
+                  </Box>
+                </Group>
+
+                <Stack gap="md" maw={560}>
+                  <Title order={1} size="h1" lh={1.08} c="white">
+                    Plan sprints, manage issues, and keep tenant data separated.
+                  </Title>
+                  <Text size="md" lh={1.7} c="gray.3">
+                    Keep issue work, sprint flow, and team ownership visible across every active
+                    organization.
+                  </Text>
+                </Stack>
+
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                  {[
+                    ['Multi-org ready', Users],
+                    ['Password auth', ShieldCheck],
+                    ['Sprints and epics', Sparkles],
+                    ['Task workspace', ListChecks],
+                  ].map(([label, Icon]) => (
+                    <Paper key={label as string} radius="md" p="sm" className="auth-feature">
+                      <Group gap="sm" wrap="nowrap">
+                        <ThemeIcon size={30} radius="md" color="blue" variant="light">
+                          <Icon size={16} aria-hidden="true" />
+                        </ThemeIcon>
+                        <Text size="sm" c="gray.1">
+                          {label as string}
+                        </Text>
+                      </Group>
+                    </Paper>
+                  ))}
+                </SimpleGrid>
+              </Stack>
+            </Box>
+
+            <Center h="100%" p={{ base: 'md', sm: 'xl' }}>
+              <Stack w="100%" maw={430} gap="lg">
+                <SegmentedControl
+                  fullWidth
+                  value={mode}
+                  onChange={(value) => setMode(value as AuthMode)}
+                  data={[
+                    { label: 'Sign in', value: 'login' },
+                    { label: 'Create org', value: 'signup' },
+                  ]}
+                />
+
+                <Paper withBorder radius="md" p="xl" shadow="sm">
+                  <Stack gap="lg">
                     <Box>
-                      <Text size="xs" fw={700} tt="uppercase" c="blue.1">
-                        Turbo Vets
-                      </Text>
-                      <Text size="sm" c="gray.4">
-                        SaaS work management
+                      <Title order={2} size="h2">
+                        {mode === 'login' ? 'Welcome back' : 'Start a workspace'}
+                      </Title>
+                      <Text mt={4} size="sm" c="dimmed">
+                        {mode === 'login'
+                          ? 'Use your existing workspace credentials.'
+                          : 'Create the first owner for a new organization.'}
                       </Text>
                     </Box>
-                  </Group>
 
-                  <Stack gap="md" maw={560}>
-                    <Title order={1} size="h1" lh={1.08} c="white">
-                      Plan sprints, manage issues, and keep tenant data
-                      separated.
-                    </Title>
-                    <Text size="md" lh={1.7} c="gray.3">
-                      The new dashboard uses TanStack Start with Mantine UI
-                      components while NestJS remains the production API owner.
-                    </Text>
-                  </Stack>
-
-                  <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-                    {[
-                      ['Multi-org ready', Users],
-                      ['Google and password auth', ShieldCheck],
-                      ['Sprints and epics', Sparkles],
-                      ['Resend invite flow', Mail],
-                    ].map(([label, Icon]) => (
-                      <Card
-                        key={label as string}
-                        radius="md"
-                        padding="sm"
-                        className="auth-feature"
+                    {mode === 'login' ? (
+                      <form
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          loginMutation.mutate(loginForm);
+                        }}
                       >
-                        <Group gap="sm" wrap="nowrap">
-                          <ThemeIcon
-                            size={30}
-                            radius="md"
-                            color="blue"
-                            variant="light"
-                          >
-                            <Icon size={16} aria-hidden="true" />
-                          </ThemeIcon>
-                          <Text size="sm" c="gray.1">
-                            {label as string}
-                          </Text>
-                        </Group>
-                      </Card>
-                    ))}
-                  </SimpleGrid>
-                </Stack>
-              </Box>
-            </Box>
+                        <Stack gap="md">
+                          <TextInput
+                            label="Email"
+                            type="email"
+                            autoComplete="email"
+                            leftSection={<Mail size={16} />}
+                            value={loginForm.email}
+                            onChange={(event) =>
+                              setLoginForm((current) => ({ ...current, email: event.target.value }))
+                            }
+                            required
+                          />
+                          <PasswordInput
+                            label="Password"
+                            autoComplete="current-password"
+                            value={loginForm.password}
+                            onChange={(event) =>
+                              setLoginForm((current) => ({ ...current, password: event.target.value }))
+                            }
+                            required
+                          />
+                          <SubmitButton pending={pending}>Sign in</SubmitButton>
+                        </Stack>
+                      </form>
+                    ) : (
+                      <form
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          signupMutation.mutate(signupForm);
+                        }}
+                      >
+                        <Stack gap="md">
+                          <TextInput
+                            label="Organization"
+                            leftSection={<Building2 size={16} />}
+                            value={signupForm.organizationName}
+                            onChange={(event) =>
+                              setSignupForm((current) => ({
+                                ...current,
+                                organizationName: event.target.value,
+                              }))
+                            }
+                            required
+                            minLength={2}
+                          />
+                          <TextInput
+                            label="Full name"
+                            value={signupForm.fullName}
+                            onChange={(event) =>
+                              setSignupForm((current) => ({ ...current, fullName: event.target.value }))
+                            }
+                            required
+                          />
+                          <TextInput
+                            label="Work email"
+                            type="email"
+                            autoComplete="email"
+                            leftSection={<Mail size={16} />}
+                            value={signupForm.email}
+                            onChange={(event) =>
+                              setSignupForm((current) => ({ ...current, email: event.target.value }))
+                            }
+                            required
+                          />
+                          <PasswordInput
+                            label="Password"
+                            autoComplete="new-password"
+                            minLength={8}
+                            value={signupForm.password}
+                            onChange={(event) =>
+                              setSignupForm((current) => ({ ...current, password: event.target.value }))
+                            }
+                            required
+                          />
+                          <SubmitButton pending={pending}>Create workspace</SubmitButton>
+                        </Stack>
+                      </form>
+                    )}
 
-            <Box>
-              <Center h="100%" p={{ base: 'md', sm: 'xl' }}>
-                <Stack w="100%" maw={430} gap="lg">
-                  <SegmentedControl
-                    fullWidth
-                    value={mode}
-                    onChange={(value) => setMode(value as AuthMode)}
-                    data={[
-                      { label: 'Sign in', value: 'login' },
-                      { label: 'Create org', value: 'signup' },
-                    ]}
-                  />
+                    {activeError ? (
+                      <Alert color="red" variant="light">
+                        {activeError}
+                      </Alert>
+                    ) : null}
 
-                  <Paper withBorder radius="lg" p="xl" shadow="sm">
-                    <Stack gap="lg">
-                      <Box>
-                        <Title order={2} size="h2">
-                          {mode === 'login'
-                            ? 'Welcome back'
-                            : 'Start a workspace'}
-                        </Title>
-                        <Text mt={4} size="sm" c="dimmed">
-                          {mode === 'login'
-                            ? 'Use your existing workspace credentials.'
-                            : 'Create the first owner for a new organization.'}
-                        </Text>
-                      </Box>
-
-                      {mode === 'login' ? (
-                        <form
-                          onSubmit={(event) => {
-                            event.preventDefault();
-                            loginMutation.mutate(loginForm);
-                          }}
-                        >
-                          <Stack gap="md">
-                            <TextInput
-                              label="Email"
-                              type="email"
-                              autoComplete="email"
-                              leftSection={<Mail size={16} />}
-                              value={loginForm.email}
-                              onChange={(event) =>
-                                setLoginForm((current) => ({
-                                  ...current,
-                                  email: event.target.value,
-                                }))
-                              }
-                              required
-                            />
-                            <PasswordInput
-                              label="Password"
-                              autoComplete="current-password"
-                              value={loginForm.password}
-                              onChange={(event) =>
-                                setLoginForm((current) => ({
-                                  ...current,
-                                  password: event.target.value,
-                                }))
-                              }
-                              required
-                            />
-                            <SubmitButton pending={pending}>
-                              Sign in
-                            </SubmitButton>
-                          </Stack>
-                        </form>
-                      ) : (
-                        <form
-                          onSubmit={(event) => {
-                            event.preventDefault();
-                            signupMutation.mutate(signupForm);
-                          }}
-                        >
-                          <Stack gap="md">
-                            <TextInput
-                              label="Organization"
-                              leftSection={<Building2 size={16} />}
-                              value={signupForm.organizationName}
-                              onChange={(event) =>
-                                setSignupForm((current) => ({
-                                  ...current,
-                                  organizationName: event.target.value,
-                                }))
-                              }
-                              required
-                              minLength={2}
-                            />
-                            <TextInput
-                              label="Full name"
-                              value={signupForm.fullName}
-                              onChange={(event) =>
-                                setSignupForm((current) => ({
-                                  ...current,
-                                  fullName: event.target.value,
-                                }))
-                              }
-                              required
-                            />
-                            <TextInput
-                              label="Work email"
-                              type="email"
-                              autoComplete="email"
-                              leftSection={<Mail size={16} />}
-                              value={signupForm.email}
-                              onChange={(event) =>
-                                setSignupForm((current) => ({
-                                  ...current,
-                                  email: event.target.value,
-                                }))
-                              }
-                              required
-                            />
-                            <PasswordInput
-                              label="Password"
-                              autoComplete="new-password"
-                              minLength={8}
-                              value={signupForm.password}
-                              onChange={(event) =>
-                                setSignupForm((current) => ({
-                                  ...current,
-                                  password: event.target.value,
-                                }))
-                              }
-                              required
-                            />
-                            <SubmitButton pending={pending}>
-                              Create workspace
-                            </SubmitButton>
-                          </Stack>
-                        </form>
-                      )}
-
-                      {activeError ? (
-                        <Alert color="red" variant="light">
-                          {activeError}
-                        </Alert>
-                      ) : null}
-
-                      {sessionSummary ? (
-                        <Alert
-                          color="green"
-                          variant="light"
-                          icon={<CheckCircle2 size={16} />}
-                        >
-                          {sessionSummary}
-                        </Alert>
-                      ) : null}
-
-                      <List size="sm" c="dimmed" spacing={4}>
-                        <List.Item>
-                          <Anchor href="https://ui.mantine.dev/" target="_blank">
-                            Mantine UI
-                          </Anchor>{' '}
-                          components are now the React UI baseline.
-                        </List.Item>
-                      </List>
-                    </Stack>
-                  </Paper>
-                </Stack>
-              </Center>
-            </Box>
+                  </Stack>
+                </Paper>
+              </Stack>
+            </Center>
           </Box>
         </Paper>
       </Container>
@@ -323,13 +296,290 @@ function AuthLandingPage() {
   );
 }
 
-function SubmitButton({
-  pending,
-  children,
+function TaskWorkspace({
+  initialUser,
+  onSignedOut,
 }: {
-  pending: boolean;
-  children: string;
+  initialUser: CurrentUser;
+  onSignedOut: () => void;
 }) {
+  const queryClient = useQueryClient();
+  const [filters, setFilters] = useState<TaskQuery>({ sortBy: 'position', order: 'asc' });
+  const [viewMode, setViewMode] = useState<ViewMode>('board');
+
+  const userQuery = useQuery({
+    queryKey: ['me'],
+    queryFn: apiClient.me,
+    initialData: initialUser,
+  });
+
+  const tasksQuery = useQuery({
+    queryKey: ['tasks', filters],
+    queryFn: () => apiClient.listTasks(filters),
+  });
+
+  const user = userQuery.data;
+  const tasks = tasksQuery.data ?? [];
+  const groupedTasks = useMemo(() => groupTasksByStatus(tasks), [tasks]);
+  const activeTasks = tasks.filter((task) => task.status !== TaskStatus.Done).length;
+
+  const signOut = () => {
+    clearSession();
+    queryClient.clear();
+    onSignedOut();
+  };
+
+  return (
+    <Box className="workspace-page">
+      <Box className="workspace-shell">
+        <Box component="aside" className="workspace-sidebar">
+          <Group gap="sm" wrap="nowrap">
+            <ThemeIcon size={38} radius="md" color="blue">
+              <ClipboardList size={20} aria-hidden="true" />
+            </ThemeIcon>
+            <Box>
+              <Text size="sm" fw={800}>
+                Turbo Vets
+              </Text>
+              <Text size="xs" c="dimmed">
+                {user.organizationName}
+              </Text>
+            </Box>
+          </Group>
+
+          <Stack gap={6}>
+            <Button justify="flex-start" variant="light" leftSection={<LayoutDashboard size={16} />}>
+              Tasks
+            </Button>
+            <Button justify="flex-start" variant="subtle" color="gray" leftSection={<Users size={16} />}>
+              Team
+            </Button>
+            <Button justify="flex-start" variant="subtle" color="gray" leftSection={<Sparkles size={16} />}>
+              AI chat
+            </Button>
+          </Stack>
+
+          <Box mt="auto">
+            <Text size="xs" c="dimmed" mb={6}>
+              Signed in as
+            </Text>
+            <Text size="sm" fw={700}>
+              {user.fullName}
+            </Text>
+            <Text size="xs" c="dimmed" mb="sm">
+              {user.role}
+            </Text>
+            <Button fullWidth variant="default" leftSection={<LogOut size={16} />} onClick={signOut}>
+              Sign out
+            </Button>
+          </Box>
+        </Box>
+
+        <Box component="main" className="workspace-main">
+          <Stack gap="lg">
+            <Group justify="space-between" align="flex-start" gap="md">
+              <Box>
+                <Title order={1}>Task Workspace</Title>
+                <Text c="dimmed" mt={4}>
+                  {tasks.length} tracked tasks, {activeTasks} active items
+                </Text>
+              </Box>
+              <SegmentedControl
+                value={viewMode}
+                onChange={(value) => setViewMode(value as ViewMode)}
+                data={[
+                  { label: 'Board', value: 'board' },
+                  { label: 'List', value: 'list' },
+                ]}
+              />
+            </Group>
+
+            <Paper withBorder radius="md" p="md">
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+                <TextInput
+                  label="Search"
+                  placeholder="Title, description, tag"
+                  leftSection={<Search size={16} />}
+                  value={filters.search ?? ''}
+                  onChange={(event) =>
+                    setFilters((current) => ({ ...current, search: event.target.value || undefined }))
+                  }
+                />
+                <Select
+                  label="Category"
+                  placeholder="All categories"
+                  clearable
+                  data={[
+                    { value: TaskCategory.Work, label: 'Work' },
+                    { value: TaskCategory.Personal, label: 'Personal' },
+                    { value: TaskCategory.Ops, label: 'Ops' },
+                  ]}
+                  value={filters.category ?? null}
+                  onChange={(value) =>
+                    setFilters((current) => ({ ...current, category: (value as TaskCategory | null) ?? undefined }))
+                  }
+                />
+                <Select
+                  label="Status"
+                  placeholder="All statuses"
+                  clearable
+                  data={statusColumns.map((column) => ({ value: column.status, label: column.label }))}
+                  value={filters.status ?? null}
+                  onChange={(value) =>
+                    setFilters((current) => ({ ...current, status: (value as TaskStatus | null) ?? undefined }))
+                  }
+                />
+                <Select
+                  label="Sort"
+                  data={[
+                    { value: 'position', label: 'Board order' },
+                    { value: 'updatedAt', label: 'Recently updated' },
+                    { value: 'title', label: 'Title' },
+                    { value: 'priority', label: 'Priority' },
+                  ]}
+                  value={filters.sortBy ?? 'position'}
+                  onChange={(value) =>
+                    setFilters((current) => ({
+                      ...current,
+                      sortBy: (value as TaskQuery['sortBy'] | null) ?? 'position',
+                    }))
+                  }
+                />
+              </SimpleGrid>
+            </Paper>
+
+            {tasksQuery.isError ? (
+              <Alert color="red">{formatError(tasksQuery.error)}</Alert>
+            ) : null}
+
+            {tasksQuery.isPending ? (
+              <Center py="xl">
+                <Loader />
+              </Center>
+            ) : viewMode === 'board' ? (
+              <TaskBoard groupedTasks={groupedTasks} />
+            ) : (
+              <TaskList tasks={tasks} />
+            )}
+          </Stack>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+function TaskBoard({ groupedTasks }: { groupedTasks: Record<TaskStatus, Task[]> }) {
+  return (
+    <SimpleGrid cols={{ base: 1, md: 2, xl: 5 }} spacing="md">
+      {statusColumns.map((column) => (
+        <Paper key={column.status} withBorder radius="md" p="md" className="task-column">
+          <Group justify="space-between" mb="sm">
+            <Text fw={800} size="sm">
+              {column.label}
+            </Text>
+            <Badge color={column.color} variant="light">
+              {groupedTasks[column.status].length}
+            </Badge>
+          </Group>
+
+          <Stack gap="sm">
+            {groupedTasks[column.status].map((task) => (
+              <TaskCard key={task.id} task={task} />
+            ))}
+            {groupedTasks[column.status].length === 0 ? (
+              <Text size="sm" c="dimmed" py="md">
+                No tasks
+              </Text>
+            ) : null}
+          </Stack>
+        </Paper>
+      ))}
+    </SimpleGrid>
+  );
+}
+
+function TaskCard({ task }: { task: Task }) {
+  return (
+    <Paper withBorder radius="md" p="sm" className="task-card">
+      <Stack gap={8}>
+        <Group justify="space-between" gap="xs">
+          <Badge color={priorityColor[task.priority]} variant="light">
+            {task.priority}
+          </Badge>
+          <Text size="xs" c="dimmed">
+            {task.issueType}
+          </Text>
+        </Group>
+        <Text fw={700} size="sm" lineClamp={2}>
+          {task.title}
+        </Text>
+        <Text size="xs" c="dimmed" lineClamp={2}>
+          {task.description ?? 'No description'}
+        </Text>
+        <Group justify="space-between" gap="xs">
+          <Text size="xs" c="dimmed">
+            {task.assigneeName ?? 'Unassigned'}
+          </Text>
+          {task.storyPoints != null ? <Badge variant="outline">{task.storyPoints} pt</Badge> : null}
+        </Group>
+      </Stack>
+    </Paper>
+  );
+}
+
+function TaskList({ tasks }: { tasks: Task[] }) {
+  if (tasks.length === 0) {
+    return (
+      <Paper withBorder radius="md" p="xl">
+        <Text c="dimmed">No tasks match the current filters.</Text>
+      </Paper>
+    );
+  }
+
+  return (
+    <Paper withBorder radius="md" p={0}>
+      <Table.ScrollContainer minWidth={760}>
+        <Table verticalSpacing="sm">
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Title</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th>Priority</Table.Th>
+              <Table.Th>Assignee</Table.Th>
+              <Table.Th>Sprint</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {tasks.map((task) => (
+              <Table.Tr key={task.id}>
+                <Table.Td>
+                  <Text fw={700} size="sm">
+                    {task.title}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {task.issueType} in {task.organizationName}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Badge variant="light">{task.status}</Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Badge color={priorityColor[task.priority]} variant="light">
+                    {task.priority}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>{task.assigneeName ?? 'Unassigned'}</Table.Td>
+                <Table.Td>{task.sprintName ?? 'Backlog'}</Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Table.ScrollContainer>
+    </Paper>
+  );
+}
+
+function SubmitButton({ pending, children }: { pending: boolean; children: string }) {
   return (
     <Button
       fullWidth
@@ -340,4 +590,24 @@ function SubmitButton({
       {children}
     </Button>
   );
+}
+
+function groupTasksByStatus(tasks: Task[]) {
+  const grouped: Record<TaskStatus, Task[]> = {
+    [TaskStatus.Backlog]: [],
+    [TaskStatus.Todo]: [],
+    [TaskStatus.InProgress]: [],
+    [TaskStatus.InReview]: [],
+    [TaskStatus.Done]: [],
+  };
+
+  for (const task of tasks) {
+    grouped[task.status].push(task);
+  }
+
+  return grouped;
+}
+
+function formatError(error: unknown) {
+  return error instanceof ApiClientError ? error.message : 'Unable to load workspace data.';
 }

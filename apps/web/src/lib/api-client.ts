@@ -1,7 +1,10 @@
 import type {
+  CurrentUser,
   LoginRequest,
   LoginResponse,
   RegisterRequest,
+  Task,
+  TaskQuery,
 } from '@nx-temp/data';
 import { getStoredSession } from './auth-storage';
 
@@ -78,6 +81,10 @@ function extractErrorMessage(payload: unknown) {
 }
 
 export const apiClient = {
+  me() {
+    return request<CurrentUser>('/auth/me');
+  },
+
   login(payload: LoginRequest) {
     return request<LoginResponse>('/auth/login', {
       method: 'POST',
@@ -90,5 +97,17 @@ export const apiClient = {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  },
+
+  listTasks(query: TaskQuery = {}) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value != null && value !== '') {
+        params.set(key, String(value));
+      }
+    }
+
+    const suffix = params.size ? `?${params.toString()}` : '';
+    return request<Task[]>(`/tasks${suffix}`);
   },
 };
