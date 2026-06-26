@@ -1,4 +1,6 @@
 import type {
+  AcceptInvitationRequest,
+  AddTaskCommentRequest,
   AuditLogEntry,
   AuditLogQuery,
   ChatAskRequest,
@@ -11,10 +13,12 @@ import type {
   CreateSprintRequest,
   CreateTaskRequest,
   CurrentUser,
+  ForgotPasswordRequest,
   InvitationResponse,
   LoginRequest,
   LoginResponse,
   RegisterRequest,
+  ResetPasswordRequest,
   Sprint,
   SprintQuery,
   SwitchOrgRequest,
@@ -26,7 +30,6 @@ import type {
   UpdateTaskRequest,
   UpdateSprintRequest,
   UserSummary,
-  AddTaskCommentRequest,
 } from '@nx-temp/data';
 import { getStoredSession } from './auth-storage';
 
@@ -152,6 +155,20 @@ export const apiClient = {
     });
   },
 
+  forgotPassword(payload: ForgotPasswordRequest) {
+    return request<void>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  resetPassword(payload: ResetPasswordRequest) {
+    return request<void>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
   switchOrg(payload: SwitchOrgRequest) {
     return request<LoginResponse>('/auth/switch-org', {
       method: 'POST',
@@ -254,6 +271,13 @@ export const apiClient = {
 
   createInvitation(payload: CreateInvitationRequest) {
     return request<void>('/invitations', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  acceptInvitation(payload: AcceptInvitationRequest) {
+    return request<LoginResponse>('/invitations/accept', {
       method: 'POST',
       body: JSON.stringify(payload),
     });

@@ -26,7 +26,7 @@ import {
   Title,
 } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import type {
   AuditLogEntry,
   ChatMessage,
@@ -353,6 +353,11 @@ function AuthLandingPage({
                             }
                             required
                           />
+                          <Text size="sm" ta="right">
+                            <Text component={Link} to="/forgot-password" c="blue" inherit>
+                              Forgot password?
+                            </Text>
+                          </Text>
                           <SubmitButton pending={pending}>Sign in</SubmitButton>
                         </Stack>
                       </form>
