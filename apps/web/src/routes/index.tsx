@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
   DndContext,
   DragEndEvent,
+  DragOverlay,
+  DragOverEvent,
+  DragStartEvent,
   PointerSensor,
   closestCenter,
   useDroppable,
@@ -2336,53 +2340,113 @@ function TaskBoard({
   onReorder: (payload: ReorderTasksRequest) => void;
 }) {
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
   );
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [activeStartStatus, setActiveStartStatus] = useState<TaskStatus | null>(
+    null,
+  );
+  const [localBoard, setLocalBoard] =
+    useState<Record<TaskStatus, Task[]> | null>(null);
+  const visibleBoard = localBoard ?? groupedTasks;
   const taskLookup = useMemo(() => {
     const lookup = new Map<string, Task>();
-    for (const tasks of Object.values(groupedTasks)) {
+    for (const tasks of Object.values(visibleBoard)) {
       for (const task of tasks) {
         lookup.set(task.id, task);
       }
     }
     return lookup;
-  }, [groupedTasks]);
+  }, [visibleBoard]);
+  const activeTask = activeTaskId ? taskLookup.get(activeTaskId) : null;
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  useEffect(() => {
+    if (!activeTaskId) {
+      setLocalBoard(null);
+    }
+  }, [activeTaskId, groupedTasks]);
+
+  const finishDrag = () => {
+    setActiveTaskId(null);
+    setActiveStartStatus(null);
+    setLocalBoard(null);
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    if (!canReorder || reorderPending) {
+      return;
+    }
+
+    const task = findTaskInBoard(groupedTasks, String(event.active.id));
+    if (!task) {
+      return;
+    }
+
+    setActiveTaskId(task.id);
+    setActiveStartStatus(task.status);
+    setLocalBoard(cloneTaskBoard(groupedTasks));
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
     if (!canReorder || reorderPending || !event.over) {
       return;
     }
 
-    const activeTask = taskLookup.get(String(event.active.id));
-    if (!activeTask) {
-      return;
-    }
-
+    const activeId = String(event.active.id);
     const overId = String(event.over.id);
-    const overTask = taskLookup.get(overId);
-    const targetStatus = overTask?.status ?? parseTaskStatus(overId);
-    if (!targetStatus) {
+    setLocalBoard((currentBoard) => {
+      if (!currentBoard) {
+        return currentBoard;
+      }
+
+      const overTask = findTaskInBoard(currentBoard, overId);
+      const targetStatus = overTask?.status ?? parseTaskStatus(overId);
+      if (!targetStatus) {
+        return currentBoard;
+      }
+
+      return moveTaskInBoard(currentBoard, activeId, targetStatus, overTask?.id);
+    });
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    if (!canReorder || reorderPending || !event.over) {
+      finishDrag();
       return;
     }
 
-    const result = moveTaskOnBoard(
-      groupedTasks,
-      activeTask.id,
-      targetStatus,
-      overTask?.id,
+    const board = localBoard ?? groupedTasks;
+    const originalTask = findTaskInBoard(groupedTasks, String(event.active.id));
+    const movedTask = findTaskInBoard(board, String(event.active.id));
+    if (!originalTask || !movedTask || !activeStartStatus) {
+      finishDrag();
+      return;
+    }
+
+    if (
+      originalTask.status === movedTask.status &&
+      originalTask.position === movedTask.position
+    ) {
+      finishDrag();
+      return;
+    }
+
+    const result = taskBoardToReorderPayload(
+      board,
+      uniqueTaskStatuses([activeStartStatus, movedTask.status]),
     );
-    if (!result) {
-      return;
-    }
-
     onReorder({ tasks: result });
+    finishDrag();
   };
 
   return (
     <DndContext
       collisionDetection={closestCenter}
       sensors={sensors}
+      onDragCancel={finishDrag}
       onDragEnd={handleDragEnd}
+      onDragOver={handleDragOver}
+      onDragStart={handleDragStart}
     >
       <SimpleGrid cols={{ base: 1, md: 2, xl: 5 }} spacing="md">
         {statusColumns.map((column) => (
@@ -2391,13 +2455,16 @@ function TaskBoard({
             canReorder={canReorder}
             column={column}
             reorderPending={reorderPending}
-            tasks={groupedTasks[column.status]}
+            tasks={visibleBoard[column.status]}
             onDelete={onDelete}
             onEdit={onEdit}
             onOpenDetails={onOpenDetails}
           />
         ))}
       </SimpleGrid>
+      <DragOverlay dropAnimation={null}>
+        {activeTask ? <TaskDragPreview task={activeTask} /> : null}
+      </DragOverlay>
     </DndContext>
   );
 }
@@ -2509,25 +2576,67 @@ function TaskCard({
       className={`task-card${isDragging ? ' task-card-dragging' : ''}`}
       style={style}
     >
-      <Stack gap={8}>
-        <Group justify="space-between" gap="xs">
-          <Group gap={4}>
-            {canReorder ? (
-              <Button
-                aria-label={`Drag ${task.title}`}
-                disabled={reorderPending}
-                size="compact-xs"
-                variant="subtle"
-                {...attributes}
-                {...listeners}
-              >
-                <GripVertical size={14} />
-              </Button>
-            ) : null}
-            <Badge color={priorityColor[task.priority]} variant="light">
-              {task.priority}
-            </Badge>
-          </Group>
+      <TaskCardContent
+        canReorder={canReorder}
+        dragHandle={
+          canReorder ? (
+            <Button
+              aria-label={`Drag ${task.title}`}
+              disabled={reorderPending}
+              size="compact-xs"
+              variant="subtle"
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical size={14} />
+            </Button>
+          ) : null
+        }
+        reorderPending={reorderPending}
+        task={task}
+        onDelete={onDelete}
+        onEdit={onEdit}
+        onOpenDetails={onOpenDetails}
+      />
+    </Paper>
+  );
+}
+
+function TaskDragPreview({ task }: { task: Task }) {
+  return (
+    <Paper withBorder radius="md" p="sm" className="task-card task-card-overlay">
+      <TaskCardContent task={task} />
+    </Paper>
+  );
+}
+
+function TaskCardContent({
+  canReorder = false,
+  dragHandle,
+  reorderPending = false,
+  task,
+  onDelete,
+  onEdit,
+  onOpenDetails,
+}: {
+  canReorder?: boolean;
+  dragHandle?: ReactNode;
+  reorderPending?: boolean;
+  task: Task;
+  onDelete?: (task: Task) => void;
+  onEdit?: (task: Task) => void;
+  onOpenDetails?: (task: Task) => void;
+}) {
+  return (
+    <Stack gap={8}>
+      <Group justify="space-between" gap="xs">
+        <Group gap={4}>
+          {canReorder && !reorderPending ? dragHandle : null}
+          <Badge color={priorityColor[task.priority]} variant="light">
+            {task.priority}
+          </Badge>
+        </Group>
+        {onOpenDetails && onEdit && onDelete ? (
           <Group gap={4}>
             <Button
               aria-label={`View ${task.title}`}
@@ -2555,26 +2664,26 @@ function TaskCard({
               <Trash2 size={14} />
             </Button>
           </Group>
-        </Group>
-        <Text fw={700} size="sm" lineClamp={2}>
-          {task.title}
+        ) : null}
+      </Group>
+      <Text fw={700} size="sm" lineClamp={2}>
+        {task.title}
+      </Text>
+      <Text size="xs" c="dimmed" lineClamp={2}>
+        {task.description ?? 'No description'}
+      </Text>
+      <Group justify="space-between" gap="xs">
+        <Text size="xs" c="dimmed">
+          {task.assigneeName ?? 'Unassigned'}
         </Text>
-        <Text size="xs" c="dimmed" lineClamp={2}>
-          {task.description ?? 'No description'}
-        </Text>
-        <Group justify="space-between" gap="xs">
-          <Text size="xs" c="dimmed">
-            {task.assigneeName ?? 'Unassigned'}
-          </Text>
-          <Group gap={4}>
-            <Badge variant="outline">{task.issueType}</Badge>
-            {task.storyPoints != null ? (
-              <Badge variant="outline">{task.storyPoints} pt</Badge>
-            ) : null}
-          </Group>
+        <Group gap={4}>
+          <Badge variant="outline">{task.issueType}</Badge>
+          {task.storyPoints != null ? (
+            <Badge variant="outline">{task.storyPoints} pt</Badge>
+          ) : null}
         </Group>
-      </Stack>
-    </Paper>
+      </Group>
+    </Stack>
   );
 }
 
@@ -2932,17 +3041,30 @@ function parseTaskStatus(value: string): TaskStatus | null {
     : null;
 }
 
-function moveTaskOnBoard(
+function cloneTaskBoard(groupedTasks: Record<TaskStatus, Task[]>) {
+  return Object.fromEntries(
+    Object.entries(groupedTasks).map(([status, tasks]) => [status, [...tasks]]),
+  ) as Record<TaskStatus, Task[]>;
+}
+
+function findTaskInBoard(
+  groupedTasks: Record<TaskStatus, Task[]>,
+  taskId: string,
+) {
+  return Object.values(groupedTasks)
+    .flat()
+    .find((task) => task.id === taskId);
+}
+
+function moveTaskInBoard(
   groupedTasks: Record<TaskStatus, Task[]>,
   activeTaskId: string,
   targetStatus: TaskStatus,
   overTaskId?: string,
 ) {
-  const activeTask = Object.values(groupedTasks)
-    .flat()
-    .find((task) => task.id === activeTaskId);
+  const activeTask = findTaskInBoard(groupedTasks, activeTaskId);
   if (!activeTask) {
-    return null;
+    return groupedTasks;
   }
 
   if (activeTask.status === targetStatus && overTaskId) {
@@ -2950,18 +3072,14 @@ function moveTaskOnBoard(
     const oldIndex = sourceTasks.findIndex((task) => task.id === activeTaskId);
     const newIndex = sourceTasks.findIndex((task) => task.id === overTaskId);
     if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) {
-      return null;
+      return groupedTasks;
     }
 
-    const reordered = [...sourceTasks];
+    const nextBoard = cloneTaskBoard(groupedTasks);
+    const reordered = nextBoard[activeTask.status];
     const [movedTask] = reordered.splice(oldIndex, 1);
     reordered.splice(newIndex, 0, movedTask);
-
-    return reordered.map((task, position) => ({
-      id: task.id,
-      status: task.status,
-      position,
-    }));
+    return nextBoard;
   }
 
   const nextBoard = Object.fromEntries(
@@ -2980,28 +3098,26 @@ function moveTaskOnBoard(
     : targetTasks.length;
   targetTasks.splice(targetIndex, 0, { ...activeTask, status: targetStatus });
 
-  const touchedStatuses = [activeTask.status, targetStatus].filter(
-    (status, index, statuses) => statuses.indexOf(status) === index,
+  return nextBoard;
+}
+
+function uniqueTaskStatuses(statuses: TaskStatus[]) {
+  return statuses.filter(
+    (status, index, allStatuses) => allStatuses.indexOf(status) === index,
   );
-  const reorderedTasks = touchedStatuses.flatMap((status) =>
-    nextBoard[status].map((task, position) => ({
+}
+
+function taskBoardToReorderPayload(
+  groupedTasks: Record<TaskStatus, Task[]>,
+  touchedStatuses: TaskStatus[],
+) {
+  return touchedStatuses.flatMap((status) =>
+    groupedTasks[status].map((task, position) => ({
       id: task.id,
       status,
       position,
     })),
   );
-
-  const activeReorderItem = reorderedTasks.find(
-    (task) => task.id === activeTaskId,
-  );
-  if (
-    activeTask.status === targetStatus &&
-    activeReorderItem?.position === activeTask.position
-  ) {
-    return null;
-  }
-
-  return reorderedTasks;
 }
 
 function mergeReorderedTasks(
