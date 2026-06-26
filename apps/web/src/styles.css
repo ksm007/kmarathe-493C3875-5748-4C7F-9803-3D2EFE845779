@@ -96,6 +96,11 @@ input {
   background: #ffffff;
 }
 
+.task-card-dragging {
+  opacity: 0.72;
+  box-shadow: 0 12px 28px rgba(23, 32, 51, 0.16);
+}
+
 .report-output {
   margin: 0;
   white-space: pre-wrap;

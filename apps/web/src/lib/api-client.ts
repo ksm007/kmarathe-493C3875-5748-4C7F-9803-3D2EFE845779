@@ -18,6 +18,7 @@ import type {
   LoginRequest,
   LoginResponse,
   RegisterRequest,
+  ReorderTasksRequest,
   ResetPasswordRequest,
   Sprint,
   SprintQuery,
@@ -252,6 +253,13 @@ export const apiClient = {
   deleteTask(id: string) {
     return request<{ success: boolean }>(`/tasks/${id}`, {
       method: 'DELETE',
+    });
+  },
+
+  reorderTasks(payload: ReorderTasksRequest) {
+    return request<Task[]>('/tasks/reorder', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
     });
   },
 

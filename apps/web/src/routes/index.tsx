@@ -1,5 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  closestCenter,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { notifications } from '@mantine/notifications';
+import {
   Alert,
   Badge,
   Box,
@@ -38,6 +54,7 @@ import type {
   PendingChatAction,
   LoginRequest,
   RegisterRequest,
+  ReorderTasksRequest,
   Sprint,
   Task,
   TaskActivity,
@@ -63,6 +80,7 @@ import {
   Eye,
   FileText,
   Flag,
+  GripVertical,
   Image as ImageIcon,
   MessageSquare,
   Pencil,
@@ -477,6 +495,13 @@ function TaskWorkspace({
   const user = userQuery.data;
   const tasks = tasksQuery.data ?? [];
   const groupedTasks = useMemo(() => groupTasksByStatus(tasks), [tasks]);
+  const canReorderTasks =
+    viewMode === 'board' &&
+    (filters.sortBy ?? 'position') === 'position' &&
+    (filters.order ?? 'asc') === 'asc' &&
+    !filters.search &&
+    !filters.category &&
+    !filters.status;
   const activeTasks = tasks.filter(
     (task) => task.status !== TaskStatus.Done,
   ).length;
@@ -517,6 +542,41 @@ function TaskWorkspace({
     onSuccess: async () => {
       closeTaskForm();
       await refreshTasks();
+    },
+  });
+  const reorderTasksMutation = useMutation({
+    mutationFn: apiClient.reorderTasks,
+    onMutate: async (payload) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] });
+      const previousTasks = queryClient.getQueryData<Task[]>([
+        'tasks',
+        filters,
+      ]);
+      queryClient.setQueryData<Task[]>(['tasks', filters], (current = []) =>
+        mergeReorderedTasks(current, payload),
+      );
+
+      return { previousTasks };
+    },
+    onSuccess: (updatedTasks) => {
+      queryClient.setQueryData<Task[]>(['tasks', filters], (current = []) =>
+        mergeTasks(current, updatedTasks),
+      );
+      notifications.show({
+        color: 'green',
+        message: 'Task order and status were saved.',
+        title: 'Board updated',
+      });
+    },
+    onError: (error, _payload, context) => {
+      if (context?.previousTasks) {
+        queryClient.setQueryData(['tasks', filters], context.previousTasks);
+      }
+      notifications.show({
+        color: 'red',
+        message: formatError(error),
+        title: 'Reorder failed',
+      });
     },
   });
   const switchOrgMutation = useMutation({
@@ -839,12 +899,24 @@ function TaskWorkspace({
                   <Loader />
                 </Center>
               ) : viewMode === 'board' ? (
-                <TaskBoard
-                  groupedTasks={groupedTasks}
-                  onDelete={deleteTask}
-                  onEdit={openEditTask}
-                  onOpenDetails={(task) => setDetailTaskId(task.id)}
-                />
+                <Stack gap="sm">
+                  {!canReorderTasks ? (
+                    <Text size="sm" c="dimmed">
+                      Switch to board order and clear filters to drag tasks.
+                    </Text>
+                  ) : null}
+                  <TaskBoard
+                    canReorder={canReorderTasks}
+                    groupedTasks={groupedTasks}
+                    reorderPending={reorderTasksMutation.isPending}
+                    onDelete={deleteTask}
+                    onEdit={openEditTask}
+                    onOpenDetails={(task) => setDetailTaskId(task.id)}
+                    onReorder={(payload) =>
+                      reorderTasksMutation.mutate(payload)
+                    }
+                  />
+                </Stack>
               ) : (
                 <TaskList
                   tasks={tasks}
@@ -2199,75 +2271,215 @@ function AttachmentPreview({
 }
 
 function TaskBoard({
+  canReorder,
   groupedTasks,
+  reorderPending,
+  onDelete,
+  onEdit,
+  onOpenDetails,
+  onReorder,
+}: {
+  canReorder: boolean;
+  groupedTasks: Record<TaskStatus, Task[]>;
+  reorderPending: boolean;
+  onDelete: (task: Task) => void;
+  onEdit: (task: Task) => void;
+  onOpenDetails: (task: Task) => void;
+  onReorder: (payload: ReorderTasksRequest) => void;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
+  const taskLookup = useMemo(() => {
+    const lookup = new Map<string, Task>();
+    for (const tasks of Object.values(groupedTasks)) {
+      for (const task of tasks) {
+        lookup.set(task.id, task);
+      }
+    }
+    return lookup;
+  }, [groupedTasks]);
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    if (!canReorder || reorderPending || !event.over) {
+      return;
+    }
+
+    const activeTask = taskLookup.get(String(event.active.id));
+    if (!activeTask) {
+      return;
+    }
+
+    const overId = String(event.over.id);
+    const overTask = taskLookup.get(overId);
+    const targetStatus = overTask?.status ?? parseTaskStatus(overId);
+    if (!targetStatus) {
+      return;
+    }
+
+    const result = moveTaskOnBoard(
+      groupedTasks,
+      activeTask.id,
+      targetStatus,
+      overTask?.id,
+    );
+    if (!result) {
+      return;
+    }
+
+    onReorder({ tasks: result });
+  };
+
+  return (
+    <DndContext
+      collisionDetection={closestCenter}
+      sensors={sensors}
+      onDragEnd={handleDragEnd}
+    >
+      <SimpleGrid cols={{ base: 1, md: 2, xl: 5 }} spacing="md">
+        {statusColumns.map((column) => (
+          <TaskColumn
+            key={column.status}
+            canReorder={canReorder}
+            column={column}
+            reorderPending={reorderPending}
+            tasks={groupedTasks[column.status]}
+            onDelete={onDelete}
+            onEdit={onEdit}
+            onOpenDetails={onOpenDetails}
+          />
+        ))}
+      </SimpleGrid>
+    </DndContext>
+  );
+}
+
+function TaskColumn({
+  canReorder,
+  column,
+  reorderPending,
+  tasks,
   onDelete,
   onEdit,
   onOpenDetails,
 }: {
-  groupedTasks: Record<TaskStatus, Task[]>;
+  canReorder: boolean;
+  column: (typeof statusColumns)[number];
+  reorderPending: boolean;
+  tasks: Task[];
   onDelete: (task: Task) => void;
   onEdit: (task: Task) => void;
   onOpenDetails: (task: Task) => void;
 }) {
-  return (
-    <SimpleGrid cols={{ base: 1, md: 2, xl: 5 }} spacing="md">
-      {statusColumns.map((column) => (
-        <Paper
-          key={column.status}
-          withBorder
-          radius="md"
-          p="md"
-          className="task-column"
-        >
-          <Group justify="space-between" mb="sm">
-            <Text fw={800} size="sm">
-              {column.label}
-            </Text>
-            <Badge color={column.color} variant="light">
-              {groupedTasks[column.status].length}
-            </Badge>
-          </Group>
+  const { setNodeRef } = useDroppable({
+    id: column.status,
+    disabled: !canReorder || reorderPending,
+  });
 
-          <Stack gap="sm">
-            {groupedTasks[column.status].map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                onDelete={onDelete}
-                onEdit={onEdit}
-                onOpenDetails={onOpenDetails}
-              />
-            ))}
-            {groupedTasks[column.status].length === 0 ? (
-              <Text size="sm" c="dimmed" py="md">
-                No tasks
-              </Text>
-            ) : null}
-          </Stack>
-        </Paper>
-      ))}
-    </SimpleGrid>
+  return (
+    <Paper
+      ref={setNodeRef}
+      withBorder
+      radius="md"
+      p="md"
+      className="task-column"
+    >
+      <Group justify="space-between" mb="sm">
+        <Text fw={800} size="sm">
+          {column.label}
+        </Text>
+        <Badge color={column.color} variant="light">
+          {tasks.length}
+        </Badge>
+      </Group>
+
+      <SortableContext
+        disabled={!canReorder || reorderPending}
+        items={tasks.map((task) => task.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <Stack gap="sm">
+          {tasks.map((task) => (
+            <TaskCard
+              key={task.id}
+              canReorder={canReorder}
+              reorderPending={reorderPending}
+              task={task}
+              onDelete={onDelete}
+              onEdit={onEdit}
+              onOpenDetails={onOpenDetails}
+            />
+          ))}
+          {tasks.length === 0 ? (
+            <Text size="sm" c="dimmed" py="md">
+              No tasks
+            </Text>
+          ) : null}
+        </Stack>
+      </SortableContext>
+    </Paper>
   );
 }
 
 function TaskCard({
+  canReorder = false,
+  reorderPending = false,
   task,
   onDelete,
   onEdit,
   onOpenDetails,
 }: {
+  canReorder?: boolean;
+  reorderPending?: boolean;
   task: Task;
   onDelete: (task: Task) => void;
   onEdit: (task: Task) => void;
   onOpenDetails: (task: Task) => void;
 }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: task.id,
+    disabled: !canReorder || reorderPending,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
   return (
-    <Paper withBorder radius="md" p="sm" className="task-card">
+    <Paper
+      ref={setNodeRef}
+      withBorder
+      radius="md"
+      p="sm"
+      className={`task-card${isDragging ? ' task-card-dragging' : ''}`}
+      style={style}
+    >
       <Stack gap={8}>
         <Group justify="space-between" gap="xs">
-          <Badge color={priorityColor[task.priority]} variant="light">
-            {task.priority}
-          </Badge>
+          <Group gap={4}>
+            {canReorder ? (
+              <Button
+                aria-label={`Drag ${task.title}`}
+                disabled={reorderPending}
+                size="compact-xs"
+                variant="subtle"
+                {...attributes}
+                {...listeners}
+              >
+                <GripVertical size={14} />
+              </Button>
+            ) : null}
+            <Badge color={priorityColor[task.priority]} variant="light">
+              {task.priority}
+            </Badge>
+          </Group>
           <Group gap={4}>
             <Button
               aria-label={`View ${task.title}`}
@@ -2586,6 +2798,116 @@ function groupTasksByStatus(tasks: Task[]) {
   }
 
   return grouped;
+}
+
+function parseTaskStatus(value: string): TaskStatus | null {
+  return Object.values(TaskStatus).includes(value as TaskStatus)
+    ? (value as TaskStatus)
+    : null;
+}
+
+function moveTaskOnBoard(
+  groupedTasks: Record<TaskStatus, Task[]>,
+  activeTaskId: string,
+  targetStatus: TaskStatus,
+  overTaskId?: string,
+) {
+  const activeTask = Object.values(groupedTasks)
+    .flat()
+    .find((task) => task.id === activeTaskId);
+  if (!activeTask) {
+    return null;
+  }
+
+  if (activeTask.status === targetStatus && overTaskId) {
+    const sourceTasks = groupedTasks[activeTask.status];
+    const oldIndex = sourceTasks.findIndex((task) => task.id === activeTaskId);
+    const newIndex = sourceTasks.findIndex((task) => task.id === overTaskId);
+    if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) {
+      return null;
+    }
+
+    const reordered = [...sourceTasks];
+    const [movedTask] = reordered.splice(oldIndex, 1);
+    reordered.splice(newIndex, 0, movedTask);
+
+    return reordered.map((task, position) => ({
+      id: task.id,
+      status: task.status,
+      position,
+    }));
+  }
+
+  const nextBoard = Object.fromEntries(
+    Object.entries(groupedTasks).map(([status, tasks]) => [
+      status,
+      tasks.filter((task) => task.id !== activeTaskId),
+    ]),
+  ) as Record<TaskStatus, Task[]>;
+
+  const targetTasks = nextBoard[targetStatus];
+  const targetIndex = overTaskId
+    ? Math.max(
+        targetTasks.findIndex((task) => task.id === overTaskId),
+        0,
+      )
+    : targetTasks.length;
+  targetTasks.splice(targetIndex, 0, { ...activeTask, status: targetStatus });
+
+  const touchedStatuses = [activeTask.status, targetStatus].filter(
+    (status, index, statuses) => statuses.indexOf(status) === index,
+  );
+  const reorderedTasks = touchedStatuses.flatMap((status) =>
+    nextBoard[status].map((task, position) => ({
+      id: task.id,
+      status,
+      position,
+    })),
+  );
+
+  const activeReorderItem = reorderedTasks.find(
+    (task) => task.id === activeTaskId,
+  );
+  if (
+    activeTask.status === targetStatus &&
+    activeReorderItem?.position === activeTask.position
+  ) {
+    return null;
+  }
+
+  return reorderedTasks;
+}
+
+function mergeReorderedTasks(
+  currentTasks: Task[],
+  payload: ReorderTasksRequest,
+) {
+  const updates = new Map(payload.tasks.map((task) => [task.id, task]));
+  return currentTasks
+    .map((task) => {
+      const update = updates.get(task.id);
+      return update
+        ? { ...task, status: update.status, position: update.position }
+        : task;
+    })
+    .sort(compareTasksByBoardOrder);
+}
+
+function mergeTasks(currentTasks: Task[], updatedTasks: Task[]) {
+  const updates = new Map(updatedTasks.map((task) => [task.id, task]));
+  return currentTasks
+    .map((task) => updates.get(task.id) ?? task)
+    .sort(compareTasksByBoardOrder);
+}
+
+function compareTasksByBoardOrder(left: Task, right: Task) {
+  const leftStatusIndex = statusColumns.findIndex(
+    (column) => column.status === left.status,
+  );
+  const rightStatusIndex = statusColumns.findIndex(
+    (column) => column.status === right.status,
+  );
+  return leftStatusIndex - rightStatusIndex || left.position - right.position;
 }
 
 function formatError(error: unknown) {
