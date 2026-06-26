@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   DndContext,
@@ -2348,6 +2348,7 @@ function TaskBoard({
   );
   const [localBoard, setLocalBoard] =
     useState<Record<TaskStatus, Task[]> | null>(null);
+  const lastDragOverKeyRef = useRef('');
   const visibleBoard = localBoard ?? groupedTasks;
   const taskLookup = useMemo(() => {
     const lookup = new Map<string, Task>();
@@ -2360,13 +2361,8 @@ function TaskBoard({
   }, [visibleBoard]);
   const activeTask = activeTaskId ? taskLookup.get(activeTaskId) : null;
 
-  useEffect(() => {
-    if (!activeTaskId) {
-      setLocalBoard(null);
-    }
-  }, [activeTaskId, groupedTasks]);
-
   const finishDrag = () => {
+    lastDragOverKeyRef.current = '';
     setActiveTaskId(null);
     setActiveStartStatus(null);
     setLocalBoard(null);
@@ -2384,6 +2380,7 @@ function TaskBoard({
 
     setActiveTaskId(task.id);
     setActiveStartStatus(task.status);
+    lastDragOverKeyRef.current = '';
     setLocalBoard(cloneTaskBoard(groupedTasks));
   };
 
@@ -2394,6 +2391,12 @@ function TaskBoard({
 
     const activeId = String(event.active.id);
     const overId = String(event.over.id);
+    const dragOverKey = `${activeId}:${overId}`;
+    if (lastDragOverKeyRef.current === dragOverKey) {
+      return;
+    }
+    lastDragOverKeyRef.current = dragOverKey;
+
     setLocalBoard((currentBoard) => {
       if (!currentBoard) {
         return currentBoard;
@@ -3080,6 +3083,14 @@ function moveTaskInBoard(
     const [movedTask] = reordered.splice(oldIndex, 1);
     reordered.splice(newIndex, 0, movedTask);
     return nextBoard;
+  }
+
+  if (activeTask.status === targetStatus && !overTaskId) {
+    const sourceTasks = groupedTasks[activeTask.status];
+    const oldIndex = sourceTasks.findIndex((task) => task.id === activeTaskId);
+    if (oldIndex === sourceTasks.length - 1) {
+      return groupedTasks;
+    }
   }
 
   const nextBoard = Object.fromEntries(
