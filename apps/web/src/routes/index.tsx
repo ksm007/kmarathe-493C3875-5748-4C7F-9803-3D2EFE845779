@@ -2437,7 +2437,13 @@ function TaskBoard({
     const result = taskBoardToReorderPayload(
       board,
       uniqueTaskStatuses([activeStartStatus, movedTask.status]),
+      groupedTasks,
     );
+    if (result.length === 0) {
+      finishDrag();
+      return;
+    }
+
     onReorder({ tasks: result });
     finishDrag();
   };
@@ -3121,13 +3127,35 @@ function uniqueTaskStatuses(statuses: TaskStatus[]) {
 function taskBoardToReorderPayload(
   groupedTasks: Record<TaskStatus, Task[]>,
   touchedStatuses: TaskStatus[],
+  originalTasks?: Record<TaskStatus, Task[]>,
 ) {
+  const originalLookup = originalTasks
+    ? new Map(
+        Object.values(originalTasks)
+          .flat()
+          .map((task) => [task.id, task]),
+      )
+    : null;
+
   return touchedStatuses.flatMap((status) =>
-    groupedTasks[status].map((task, position) => ({
-      id: task.id,
-      status,
-      position,
-    })),
+    groupedTasks[status].flatMap((task, position) => {
+      const originalTask = originalLookup?.get(task.id);
+      if (
+        originalTask &&
+        originalTask.status === status &&
+        originalTask.position === position
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          id: task.id,
+          status,
+          position,
+        },
+      ];
+    }),
   );
 }
 

@@ -588,10 +588,6 @@ export class TasksService {
       metadata: { ids },
     });
 
-    await Promise.all(
-      [...taskMap.keys()].map((taskId) => this.syncTaskEmbedding(taskId)),
-    );
-
     return [...taskMap.values()]
       .sort((a, b) => a.position - b.position)
       .map((task) => this.toTask(task));

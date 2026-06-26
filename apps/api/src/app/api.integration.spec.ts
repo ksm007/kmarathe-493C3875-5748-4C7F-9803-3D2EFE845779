@@ -277,6 +277,38 @@ describe('API integration', () => {
     expect(backlogTasks.map((task) => task.title)).toEqual(['Backlog task']);
   });
 
+  it('reorders tasks without refreshing text embeddings', async () => {
+    const { ownerAuthUser } = await seedHierarchy();
+    const firstTask = await createTask(
+      ownerAuthUser.id,
+      ownerAuthUser.organizationId,
+      'First reorder task'
+    );
+    const secondTask = await createTask(
+      ownerAuthUser.id,
+      ownerAuthUser.organizationId,
+      'Second reorder task'
+    );
+    const syncSpy = jest.spyOn(aiService, 'syncTaskEmbedding');
+
+    const reorderedTasks = await tasksService.reorderTasks(ownerAuthUser, {
+      tasks: [
+        { id: secondTask.id, status: TaskStatus.Todo, position: 0 },
+        { id: firstTask.id, status: TaskStatus.InProgress, position: 1 },
+      ],
+    });
+
+    expect(syncSpy).not.toHaveBeenCalled();
+    expect(reorderedTasks.map((task) => task.id)).toEqual([
+      secondTask.id,
+      firstTask.id,
+    ]);
+    expect(reorderedTasks.map((task) => task.position)).toEqual([0, 1]);
+    expect(reorderedTasks.find((task) => task.id === firstTask.id)?.status).toBe(
+      TaskStatus.InProgress
+    );
+  });
+
   it('stores image-only task attachments in task detail', async () => {
     const { ownerAuthUser } = await seedHierarchy();
     const task = await tasksService.createTask(ownerAuthUser, {
