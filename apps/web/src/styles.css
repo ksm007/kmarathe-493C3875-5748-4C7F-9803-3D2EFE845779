@@ -109,8 +109,39 @@ input {
 
 .report-output {
   margin: 0;
-  white-space: pre-wrap;
-  font-family: inherit;
+  display: grid;
+  gap: 14px;
+  line-height: 1.7;
+}
+
+.report-output h2,
+.report-output h3,
+.report-output h4,
+.report-output p {
+  margin: 0;
+}
+
+.report-output strong {
+  color: #1c5f4a;
+}
+
+.report-output em {
+  color: #667085;
+}
+
+.report-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.report-list li {
+  border-left: 3px solid #2f8f6b;
+  border-radius: 6px;
+  background: #f7faf9;
+  padding: 10px 12px;
 }
 
 .attachment-preview {
