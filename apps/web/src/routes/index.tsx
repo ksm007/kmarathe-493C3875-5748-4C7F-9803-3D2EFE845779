@@ -44,6 +44,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, createFileRoute } from '@tanstack/react-router';
 import type {
+  AcceptanceCriteriaInput,
   AuditLogEntry,
   ChatMessage,
   CreateInvitationRequest,
@@ -127,6 +128,12 @@ interface TaskFormState {
   priority: TaskPriority;
   status: TaskStatus;
   storyPoints: number | '';
+  sprintId: string;
+  parentEpicId: string;
+  assigneeId: string;
+  dueDate: string;
+  tagsText: string;
+  acceptanceCriteriaText: string;
 }
 
 interface InvitationFormState {
@@ -164,6 +171,12 @@ const emptyTaskForm: TaskFormState = {
   priority: TaskPriority.Medium,
   status: TaskStatus.Todo,
   storyPoints: '',
+  sprintId: '',
+  parentEpicId: '',
+  assigneeId: '',
+  dueDate: '',
+  tagsText: '',
+  acceptanceCriteriaText: '',
 };
 
 const emptyInvitationForm: InvitationFormState = {
@@ -486,14 +499,37 @@ function TaskWorkspace({
     queryFn: apiClient.me,
     initialData: initialUser,
   });
+  const user = userQuery.data;
 
   const tasksQuery = useQuery({
     queryKey: ['tasks', filters],
     queryFn: () => apiClient.listTasks(filters),
   });
+  const taskFormOptionsQuery = useQuery({
+    queryKey: ['task-form-options', user.organizationId],
+    queryFn: async () => {
+      const [users, sprints, taskOptions] = await Promise.all([
+        apiClient.listUsers(),
+        apiClient.listSprints(),
+        apiClient.listTasks({ sortBy: 'title', order: 'asc' }),
+      ]);
 
-  const user = userQuery.data;
+      return { users, sprints, taskOptions };
+    },
+    enabled: taskFormOpen,
+  });
+
   const tasks = tasksQuery.data ?? [];
+  const taskFormOptions = taskFormOptionsQuery.data;
+  const assignableUsers = taskFormOptions?.users ?? [];
+  const assignableSprints =
+    taskFormOptions?.sprints.filter(
+      (sprint) => sprint.state !== SprintState.Completed,
+    ) ?? [];
+  const epicOptions =
+    taskFormOptions?.taskOptions.filter(
+      (task) => task.issueType === IssueType.Epic && task.id !== editingTask?.id,
+    ) ?? [];
   const groupedTasks = useMemo(() => groupTasksByStatus(tasks), [tasks]);
   const canReorderTasks =
     viewMode === 'board' &&
@@ -588,6 +624,7 @@ function TaskWorkspace({
       setFilters({ sortBy: 'position', order: 'asc' });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+        queryClient.invalidateQueries({ queryKey: ['task-form-options'] }),
         queryClient.invalidateQueries({ queryKey: ['team-users'] }),
         queryClient.invalidateQueries({ queryKey: ['invitations'] }),
         queryClient.invalidateQueries({ queryKey: ['sprints'] }),
@@ -624,6 +661,14 @@ function TaskWorkspace({
       priority: task.priority,
       status: task.status,
       storyPoints: task.storyPoints ?? '',
+      sprintId: task.sprintId ?? '',
+      parentEpicId: task.parentEpicId ?? '',
+      assigneeId: task.assigneeId ?? '',
+      dueDate: task.dueDate ?? '',
+      tagsText: task.tags.join(', '),
+      acceptanceCriteriaText: task.acceptanceCriteria
+        .map((item) => item.text)
+        .join('\n'),
     });
     setTaskFormOpen(true);
   };
@@ -635,7 +680,7 @@ function TaskWorkspace({
   };
 
   const saveTask = () => {
-    const payload = taskFormToPayload(taskForm);
+    const payload = taskFormToPayload(taskForm, editingTask);
     if (editingTask) {
       updateTaskMutation.mutate({ id: editingTask.id, payload });
       return;
@@ -653,6 +698,8 @@ function TaskWorkspace({
   return (
     <Box className="workspace-page">
       <TaskFormModal
+        assignableUsers={assignableUsers}
+        epicOptions={epicOptions}
         error={mutationError}
         form={taskForm}
         mode={editingTask ? 'edit' : 'create'}
@@ -662,6 +709,7 @@ function TaskWorkspace({
         onSave={saveTask}
         opened={taskFormOpen}
         pending={mutationPending}
+        sprintOptions={assignableSprints}
       />
       <TaskDetailModal
         opened={detailTaskId != null}
@@ -2620,6 +2668,8 @@ function TaskList({
 }
 
 function TaskFormModal({
+  assignableUsers,
+  epicOptions,
   error,
   form,
   mode,
@@ -2629,7 +2679,10 @@ function TaskFormModal({
   onSave,
   opened,
   pending,
+  sprintOptions,
 }: {
+  assignableUsers: UserSummary[];
+  epicOptions: Task[];
   error: string;
   form: TaskFormState;
   mode: 'create' | 'edit';
@@ -2639,6 +2692,7 @@ function TaskFormModal({
   onSave: () => void;
   opened: boolean;
   pending: boolean;
+  sprintOptions: Sprint[];
 }) {
   const update = <TKey extends keyof TaskFormState>(
     key: TKey,
@@ -2646,6 +2700,15 @@ function TaskFormModal({
   ) => {
     onChange({ ...form, [key]: value });
   };
+  const updateIssueType = (issueType: IssueType) => {
+    onChange({
+      ...form,
+      issueType,
+      parentEpicId: issueType === IssueType.Epic ? '' : form.parentEpicId,
+      sprintId: issueType === IssueType.Epic ? '' : form.sprintId,
+    });
+  };
+  const epicDisabled = form.issueType === IssueType.Epic;
 
   return (
     <Modal
@@ -2653,6 +2716,7 @@ function TaskFormModal({
       onClose={onClose}
       title={mode === 'create' ? 'New task' : 'Edit task'}
       centered
+      size="xl"
     >
       <form
         onSubmit={(event) => {
@@ -2687,7 +2751,7 @@ function TaskFormModal({
                 { value: IssueType.Epic, label: 'Epic' },
               ]}
               value={form.issueType}
-              onChange={(value) => update('issueType', value as IssueType)}
+              onChange={(value) => updateIssueType(value as IssueType)}
             />
             <Select
               allowDeselect={false}
@@ -2726,11 +2790,73 @@ function TaskFormModal({
             allowDecimal={false}
             allowNegative={false}
             label="Story points"
-            max={99}
+            max={40}
             min={0}
             value={form.storyPoints}
             onChange={(value) =>
               update('storyPoints', typeof value === 'number' ? value : '')
+            }
+          />
+          <SimpleGrid cols={{ base: 1, sm: 2 }}>
+            <Select
+              clearable
+              data={epicOptions.map((task) => ({
+                value: task.id,
+                label: task.title,
+              }))}
+              disabled={epicDisabled}
+              label="Epic"
+              placeholder={
+                epicDisabled ? 'Epics cannot belong to epics' : 'No epic'
+              }
+              value={form.parentEpicId || null}
+              onChange={(value) => update('parentEpicId', value ?? '')}
+            />
+            <Select
+              clearable
+              data={sprintOptions.map((sprint) => ({
+                value: sprint.id,
+                label: `${sprint.name} - ${sprint.state}`,
+              }))}
+              disabled={epicDisabled}
+              label="Sprint"
+              placeholder={epicDisabled ? 'Epics stay in backlog' : 'Backlog'}
+              value={form.sprintId || null}
+              onChange={(value) => update('sprintId', value ?? '')}
+            />
+            <Select
+              clearable
+              data={assignableUsers.map((user) => ({
+                value: user.id,
+                label: `${user.fullName} - ${user.organizationName}`,
+              }))}
+              label="Assignee"
+              placeholder="Unassigned"
+              value={form.assigneeId || null}
+              onChange={(value) => update('assigneeId', value ?? '')}
+            />
+            <TextInput
+              label="Due date"
+              type="date"
+              value={form.dueDate}
+              onChange={(event) => update('dueDate', event.target.value)}
+            />
+          </SimpleGrid>
+          <TextInput
+            label="Tags"
+            placeholder="security, auth, sprint-12"
+            value={form.tagsText}
+            onChange={(event) => update('tagsText', event.target.value)}
+          />
+          <Textarea
+            autosize
+            label="Acceptance criteria"
+            maxLength={4800}
+            minRows={3}
+            placeholder="One criterion per line"
+            value={form.acceptanceCriteriaText}
+            onChange={(event) =>
+              update('acceptanceCriteriaText', event.target.value)
             }
           />
 
@@ -2940,7 +3066,10 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function taskFormToPayload(form: TaskFormState): CreateTaskRequest {
+function taskFormToPayload(
+  form: TaskFormState,
+  editingTask: Task | null,
+): CreateTaskRequest {
   return {
     title: form.title.trim(),
     description: form.description.trim() ? form.description.trim() : null,
@@ -2949,5 +3078,49 @@ function taskFormToPayload(form: TaskFormState): CreateTaskRequest {
     priority: form.priority,
     status: form.status,
     storyPoints: form.storyPoints === '' ? null : form.storyPoints,
+    sprintId:
+      form.issueType === IssueType.Epic ? null : form.sprintId.trim() || null,
+    parentEpicId:
+      form.issueType === IssueType.Epic
+        ? null
+        : form.parentEpicId.trim() || null,
+    assigneeId: form.assigneeId.trim() || null,
+    dueDate: form.dueDate || null,
+    tags: parseTags(form.tagsText),
+    acceptanceCriteria: parseAcceptanceCriteria(
+      form.acceptanceCriteriaText,
+      editingTask,
+    ),
   };
+}
+
+function parseTags(value: string) {
+  return value
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .slice(0, 10);
+}
+
+function parseAcceptanceCriteria(
+  value: string,
+  editingTask: Task | null,
+): AcceptanceCriteriaInput[] {
+  const existingByText = new Map(
+    (editingTask?.acceptanceCriteria ?? []).map((item) => [item.text, item]),
+  );
+
+  return value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 20)
+    .map((text) => {
+      const existing = existingByText.get(text);
+      return {
+        id: existing?.id,
+        text: text.slice(0, 240),
+        completed: existing?.completed ?? false,
+      };
+    });
 }
