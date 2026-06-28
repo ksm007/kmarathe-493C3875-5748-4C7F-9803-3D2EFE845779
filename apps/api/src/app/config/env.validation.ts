@@ -14,6 +14,12 @@ export interface AppEnv {
   EMBEDDING_MODEL: string;
   MAX_CHAT_REQUESTS_PER_MINUTE: number;
   CANARY_TOKEN: string;
+  // Per-IP rate limit applied to the public/abuse-prone auth + invite routes.
+  AUTH_RATE_LIMIT_TTL_SECONDS: number;
+  AUTH_RATE_LIMIT_MAX: number;
+  // Per-account brute-force protection on POST /auth/login.
+  LOGIN_MAX_FAILED_ATTEMPTS: number;
+  LOGIN_LOCKOUT_SECONDS: number;
 }
 
 export function validateEnv(config: Record<string, unknown>): AppEnv {
@@ -41,5 +47,9 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
     EMBEDDING_MODEL: String(config.EMBEDDING_MODEL ?? 'text-embedding-3-small'),
     MAX_CHAT_REQUESTS_PER_MINUTE: Number(config.MAX_CHAT_REQUESTS_PER_MINUTE ?? 20),
     CANARY_TOKEN: String(config.CANARY_TOKEN ?? '__SYSTEM_BOUNDARY_42__'),
+    AUTH_RATE_LIMIT_TTL_SECONDS: Number(config.AUTH_RATE_LIMIT_TTL_SECONDS ?? 60),
+    AUTH_RATE_LIMIT_MAX: Number(config.AUTH_RATE_LIMIT_MAX ?? 10),
+    LOGIN_MAX_FAILED_ATTEMPTS: Number(config.LOGIN_MAX_FAILED_ATTEMPTS ?? 5),
+    LOGIN_LOCKOUT_SECONDS: Number(config.LOGIN_LOCKOUT_SECONDS ?? 900),
   };
 }

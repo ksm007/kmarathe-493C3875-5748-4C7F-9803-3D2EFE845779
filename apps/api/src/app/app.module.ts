@@ -1,7 +1,8 @@
 import { AiModule } from './ai/ai.module';
 import { Module } from '@nestjs/common';
 import { ChatModule } from './chat/chat.module';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { validateEnv } from './config/env.validation';
@@ -19,6 +20,21 @@ import { UsersModule } from './users/users.module';
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
+    }),
+    // Per-IP rate limiting. ThrottlerModule is @Global, so the ThrottlerGuard
+    // is opt-in per route via @UseGuards(ThrottlerGuard) on the abuse-prone
+    // auth/invite endpoints - it is intentionally NOT registered as an APP_GUARD,
+    // so normal authenticated app traffic is never throttled.
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        throttlers: [
+          {
+            ttl: configService.get<number>('AUTH_RATE_LIMIT_TTL_SECONDS', 60) * 1000,
+            limit: configService.get<number>('AUTH_RATE_LIMIT_MAX', 10),
+          },
+        ],
+      }),
     }),
     DatabaseModule,
     EmailModule,

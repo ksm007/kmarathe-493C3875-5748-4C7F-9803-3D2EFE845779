@@ -2,13 +2,14 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException, ForbiddenException, HttpStatus, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { newDb } from 'pg-mem';
 import { DataSource, Repository } from 'typeorm';
 import { Role, SprintState, TaskCategory, TaskPriority, TaskStatus } from '@nx-temp/data';
 import { AiService } from './ai/ai.service';
 import { AuditService } from './audit/audit.service';
 import { AuthService } from './auth/auth.service';
+import { LoginAttemptService } from './auth/login-attempt.service';
 import { ChatRateLimiterService } from './chat/chat-rate-limiter.service';
 import { ChatService } from './chat/chat.service';
 import {
@@ -55,6 +56,7 @@ describe('API integration', () => {
   let auditService: AuditService;
   let aiService: AiService;
   let authService: AuthService;
+  let loginAttemptService: LoginAttemptService;
   let invitationsService: InvitationsService;
   let tasksService: TasksService;
   let chatService: ChatService;
@@ -122,6 +124,9 @@ describe('API integration', () => {
       configService
     );
 
+    loginAttemptService = new LoginAttemptService(
+      new ConfigService({ LOGIN_MAX_FAILED_ATTEMPTS: 5, LOGIN_LOCKOUT_SECONDS: 900 })
+    );
     authService = new AuthService(
       new JwtService({ secret: 'test-secret', signOptions: { expiresIn: '1h' as never } }),
       new ConfigService({ JWT_SECRET: 'test-secret', JWT_EXPIRES_IN: '1h' }),
@@ -130,7 +135,8 @@ describe('API integration', () => {
       organizationsRepository,
       membershipsRepository,
       invitationsRepository,
-      passwordResetTokensRepository
+      passwordResetTokensRepository,
+      loginAttemptService
     );
     invitationsService = new InvitationsService(authService, emailService, invitationsRepository);
 
@@ -174,6 +180,50 @@ describe('API integration', () => {
 
     await expect(authService.login(ownerAuthUser.email, 'wrong-pass')).rejects.toBeInstanceOf(
       UnauthorizedException
+    );
+  });
+
+  it('locks an account out after repeated failed logins and rejects even correct credentials', async () => {
+    const { ownerAuthUser } = await seedHierarchy();
+
+    // Five wrong passwords reach the LOGIN_MAX_FAILED_ATTEMPTS threshold.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await expect(authService.login(ownerAuthUser.email, 'wrong-pass')).rejects.toBeInstanceOf(
+        UnauthorizedException
+      );
+    }
+
+    // The account is now locked: even the correct password is refused with 429.
+    await expect(authService.login(ownerAuthUser.email, 'Password123!')).rejects.toMatchObject({
+      status: HttpStatus.TOO_MANY_REQUESTS,
+    });
+    await expect(authService.login(ownerAuthUser.email, 'Password123!')).rejects.toBeInstanceOf(
+      HttpException
+    );
+  });
+
+  it('resets the failed-login counter after a successful login', async () => {
+    const { ownerAuthUser } = await seedHierarchy();
+
+    // Four failures stay below the threshold of five.
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await expect(authService.login(ownerAuthUser.email, 'wrong-pass')).rejects.toBeInstanceOf(
+        UnauthorizedException
+      );
+    }
+
+    // A success clears the counter, so the account never locks out.
+    await expect(authService.login(ownerAuthUser.email, 'Password123!')).resolves.toEqual(
+      expect.objectContaining({ accessToken: expect.any(String) })
+    );
+
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await expect(authService.login(ownerAuthUser.email, 'wrong-pass')).rejects.toBeInstanceOf(
+        UnauthorizedException
+      );
+    }
+    await expect(authService.login(ownerAuthUser.email, 'Password123!')).resolves.toEqual(
+      expect.objectContaining({ accessToken: expect.any(String) })
     );
   });
 
