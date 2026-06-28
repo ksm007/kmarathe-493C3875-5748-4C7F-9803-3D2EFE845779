@@ -333,6 +333,15 @@ INVITE_RATE_LIMIT_MAX=50          # max invite-create requests per IP per window
 LOGIN_MAX_FAILED_ATTEMPTS=5       # failed logins per account before lockout
 LOGIN_LOCKOUT_SECONDS=900         # account lockout duration
 TRUST_PROXY=1                     # proxy hops to trust for the real client IP
+
+# Attachment storage - provider: "local" (dev default, disk) or "cloudinary" (production)
+ATTACHMENT_STORAGE_PROVIDER=cloudinary
+# Cloudinary credentials (required when ATTACHMENT_STORAGE_PROVIDER=cloudinary)
+CLOUDINARY_URL=cloudinary://<api_key>:<api_secret>@<cloud_name>
+# Or set the three values individually instead of CLOUDINARY_URL:
+# CLOUDINARY_CLOUD_NAME=...
+# CLOUDINARY_API_KEY=...
+# CLOUDINARY_API_SECRET=...
 ```
 
 > Behind a reverse proxy, keep `TRUST_PROXY=1` (the default) so per-IP rate

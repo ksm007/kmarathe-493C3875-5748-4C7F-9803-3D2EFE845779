@@ -1,45 +1,37 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createReadStream } from 'fs';
-import { mkdir, unlink, writeFile } from 'fs/promises';
-import { dirname, join, resolve } from 'path';
+import { Readable } from 'stream';
+import { AttachmentStorageAdapter } from './storage/attachment-storage.adapter';
+import { createAttachmentStorageAdapter } from './storage/attachment-storage.factory';
 
+/**
+ * Storage seam for task attachments. Selects a concrete adapter (local disk in
+ * development, Cloudinary in production) from env config and delegates every
+ * read/write/delete to it, so callers stay backend-agnostic.
+ */
 @Injectable()
-export class AttachmentStorageService {
-  private readonly rootDir: string;
+export class AttachmentStorageService implements AttachmentStorageAdapter {
+  private readonly adapter: AttachmentStorageAdapter;
 
   constructor(configService: ConfigService) {
-    this.rootDir = resolve(
-      configService.get<string>('ATTACHMENT_STORAGE_DIR') ??
-        join(process.cwd(), 'var', 'attachments'),
-    );
+    this.adapter = createAttachmentStorageAdapter(configService);
   }
 
-  async save(storageKey: string, buffer: Buffer): Promise<void> {
-    const path = this.pathFor(storageKey);
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, buffer);
+  save(storageKey: string, buffer: Buffer): Promise<void> {
+    return this.adapter.save(storageKey, buffer);
   }
 
-  createReadStream(storageKey: string) {
-    return createReadStream(this.pathFor(storageKey));
+  createReadStream(storageKey: string): Readable {
+    return this.adapter.createReadStream(storageKey);
   }
 
-  async remove(storageKey: string): Promise<void> {
-    try {
-      await unlink(this.pathFor(storageKey));
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        throw error;
-      }
-    }
+  openReadStream(
+    storageKey: string,
+  ): Promise<{ stream: Readable; byteLength: number | null }> {
+    return this.adapter.openReadStream(storageKey);
   }
 
-  private pathFor(storageKey: string) {
-    const path = resolve(this.rootDir, storageKey);
-    if (!path.startsWith(this.rootDir)) {
-      throw new Error('Invalid attachment storage key');
-    }
-    return path;
+  remove(storageKey: string): Promise<void> {
+    return this.adapter.remove(storageKey);
   }
 }
