@@ -38,7 +38,6 @@ export class InvitationsService {
       actor: requester,
       action: 'invitations.create',
       resource: 'invitation',
-      resourceId: email,
       organizationId: requester.organizationId,
       allowed: true,
       metadata: { role, targetEmail: email },

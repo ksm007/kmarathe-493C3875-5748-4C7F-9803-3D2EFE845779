@@ -173,7 +173,7 @@ describe('invitation audit logging', () => {
     expect(entry.actorEmail).toBe(actor.email);
     expect(entry.organizationId).toBe(org.id);
     expect(entry.resource).toBe('invitation');
-    expect(entry.resourceId).toBe('invitee@acme.test');
+    expect(entry.resourceId).toBeNull();
     expect(entry.metadata).toMatchObject({ role: Role.Viewer, targetEmail: 'invitee@acme.test' });
   });
 
