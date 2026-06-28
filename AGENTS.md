@@ -100,3 +100,12 @@ Do not replace this with a plain `navigate({ to: '/tasks' })` - that would break
 
 - In `_authed.team.tsx` the Remove button is also disabled when `currentUser.role === Role.Admin && user.role === Role.Owner`.
   Only Owners can remove other Owners.
+
+## apps/web TanStack Form + Table (ADR 0027)
+
+- `@tanstack/react-form` (v1.x) and `@tanstack/react-table` (v8.x) are both in use and both installed in the root `package.json`.
+- **Forms**: `useForm` from `@tanstack/react-form` is used for all forms: login/signup (`features/auth/auth-landing.tsx`), task create/edit (`features/tasks/task-form-modal.tsx`), and invite (`routes/_authed.team.tsx`). Field-level validators use `onSubmit`/`onChange` with `validators` option; cross-field validation (password match) uses `onChangeListenTo` on the dependent field.
+- To read reactive form state outside a `<form.Field>` render prop, use `useStore` (re-exported from `@tanstack/react-form`): `useStore(form.store, s => s.values.fieldName)`. `form.useStore(...)` does not exist in this version.
+- `TaskFormModal` (`features/tasks/task-form-modal.tsx`) owns its own TanStack Form instance. It receives `defaultValues: TaskFormState` and `editingTask: Task | null` props; the parent mounts it with a `key={editingTask?.id ?? 'new'}` so the form resets when the editing task changes. The `onSave` prop receives the fully-built `CreateTaskRequest` payload rather than raw form state.
+- **Tables**: `useReactTable` from `@tanstack/react-table` with `getCoreRowModel` + `getSortedRowModel` is used for: task list (`features/tasks/board.tsx` `TaskList`), team members + invitations (`routes/_authed.team.tsx`), and audit log (`routes/_authed._admin.audit-log.tsx`). Column defs use `createColumnHelper`. Mantine `Table` markup is the presentation layer via `flexRender`.
+- Columns that should not be sortable (e.g. the metadata column in audit log) set `enableSorting: false` on the column def.

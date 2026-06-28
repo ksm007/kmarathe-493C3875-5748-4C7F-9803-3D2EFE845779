@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   Badge,
@@ -15,6 +15,14 @@ import {
   Title,
 } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type SortingState,
+} from '@tanstack/react-table';
 import { createFileRoute } from '@tanstack/react-router';
 import type { AuditLogEntry } from '@nx-temp/data';
 import { RefreshCw } from 'lucide-react';
@@ -37,15 +45,94 @@ export const Route = createFileRoute('/_authed/_admin/audit-log')({
   component: AuditLogRoute,
 });
 
+const auditColumnHelper = createColumnHelper<AuditLogEntry>();
+
 function AuditLogRoute() {
   const currentUser = useCurrentUser();
   const [limit, setLimit] = useState(defaultAuditLimit);
+  const [sorting, setSorting] = useState<SortingState>([]);
+
   const auditQuery = useQuery({
     queryKey: ['audit-log', currentUser.organizationId, limit],
     queryFn: () => apiClient.auditLog({ limit }),
   });
 
   const entries = auditQuery.data ?? [];
+
+  const columns = useMemo(
+    () => [
+      auditColumnHelper.accessor('createdAt', {
+        header: 'Time',
+        cell: (info) => (
+          <Text size="sm">{new Date(info.getValue()).toLocaleString()}</Text>
+        ),
+      }),
+      auditColumnHelper.accessor('actorEmail', {
+        header: 'Actor',
+        cell: (info) => (
+          <Text size="sm">{info.getValue() ?? 'System'}</Text>
+        ),
+      }),
+      auditColumnHelper.accessor('action', {
+        header: 'Action',
+        cell: (info) => (
+          <Text size="sm" fw={700}>
+            {info.getValue()}
+          </Text>
+        ),
+      }),
+      auditColumnHelper.display({
+        id: 'resource',
+        header: 'Resource',
+        cell: (info) => {
+          const entry = info.row.original;
+          return (
+            <Text size="sm">
+              {entry.resource}
+              {entry.resourceId ? ` ${entry.resourceId}` : ''}
+            </Text>
+          );
+        },
+      }),
+      auditColumnHelper.accessor('allowed', {
+        header: 'Result',
+        cell: (info) => {
+          const entry = info.row.original;
+          return (
+            <>
+              <Badge color={info.getValue() ? 'green' : 'red'} variant="light">
+                {info.getValue() ? 'Allowed' : 'Denied'}
+              </Badge>
+              {entry.reason ? (
+                <Text size="xs" c="dimmed" mt={4}>
+                  {entry.reason}
+                </Text>
+              ) : null}
+            </>
+          );
+        },
+      }),
+      auditColumnHelper.accessor('metadata', {
+        header: 'Metadata',
+        enableSorting: false,
+        cell: (info) => (
+          <Text size="xs" c="dimmed" lineClamp={3}>
+            {formatMetadata(info.getValue())}
+          </Text>
+        ),
+      }),
+    ],
+    [],
+  );
+
+  const table = useReactTable({
+    data: entries,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
 
   return (
     <Stack gap="lg">
@@ -87,14 +174,31 @@ function AuditLogRoute() {
         <Table.ScrollContainer minWidth={920}>
           <Table verticalSpacing="sm">
             <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Time</Table.Th>
-                <Table.Th>Actor</Table.Th>
-                <Table.Th>Action</Table.Th>
-                <Table.Th>Resource</Table.Th>
-                <Table.Th>Result</Table.Th>
-                <Table.Th>Metadata</Table.Th>
-              </Table.Tr>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <Table.Tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <Table.Th
+                      key={header.id}
+                      style={
+                        header.column.getCanSort()
+                          ? { cursor: 'pointer', userSelect: 'none' }
+                          : undefined
+                      }
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
+                      {flexRender(
+                        header.column.columnDef.header,
+                        header.getContext(),
+                      )}
+                      {header.column.getIsSorted() === 'asc'
+                        ? ' ↑'
+                        : header.column.getIsSorted() === 'desc'
+                          ? ' ↓'
+                          : null}
+                    </Table.Th>
+                  ))}
+                </Table.Tr>
+              ))}
             </Table.Thead>
             <Table.Tbody>
               {auditQuery.isPending ? (
@@ -105,11 +209,7 @@ function AuditLogRoute() {
                     </Center>
                   </Table.Td>
                 </Table.Tr>
-              ) : entries.length ? (
-                entries.map((entry) => (
-                  <AuditRow key={entry.id} entry={entry} />
-                ))
-              ) : (
+              ) : table.getRowModel().rows.length === 0 ? (
                 <Table.Tr>
                   <Table.Td colSpan={6}>
                     <Text c="dimmed" py="md">
@@ -117,50 +217,24 @@ function AuditLogRoute() {
                     </Text>
                   </Table.Td>
                 </Table.Tr>
+              ) : (
+                table.getRowModel().rows.map((row) => (
+                  <Table.Tr key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <Table.Td key={cell.id}>
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </Table.Td>
+                    ))}
+                  </Table.Tr>
+                ))
               )}
             </Table.Tbody>
           </Table>
         </Table.ScrollContainer>
       </Paper>
     </Stack>
-  );
-}
-
-function AuditRow({ entry }: { entry: AuditLogEntry }) {
-  return (
-    <Table.Tr>
-      <Table.Td>
-        <Text size="sm">{new Date(entry.createdAt).toLocaleString()}</Text>
-      </Table.Td>
-      <Table.Td>
-        <Text size="sm">{entry.actorEmail ?? 'System'}</Text>
-      </Table.Td>
-      <Table.Td>
-        <Text size="sm" fw={700}>
-          {entry.action}
-        </Text>
-      </Table.Td>
-      <Table.Td>
-        <Text size="sm">
-          {entry.resource}
-          {entry.resourceId ? ` ${entry.resourceId}` : ''}
-        </Text>
-      </Table.Td>
-      <Table.Td>
-        <Badge color={entry.allowed ? 'green' : 'red'} variant="light">
-          {entry.allowed ? 'Allowed' : 'Denied'}
-        </Badge>
-        {entry.reason ? (
-          <Text size="xs" c="dimmed" mt={4}>
-            {entry.reason}
-          </Text>
-        ) : null}
-      </Table.Td>
-      <Table.Td>
-        <Text size="xs" c="dimmed" lineClamp={3}>
-          {formatMetadata(entry.metadata)}
-        </Text>
-      </Table.Td>
-    </Table.Tr>
   );
 }

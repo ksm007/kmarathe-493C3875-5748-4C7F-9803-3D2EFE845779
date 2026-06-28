@@ -50,7 +50,6 @@ import {
 import {
   TaskFormModal,
   emptyTaskForm,
-  taskFormToPayload,
 } from '~/features/tasks/task-form-modal';
 import type { TaskFormState } from '~/features/tasks/task-form-modal';
 
@@ -75,7 +74,8 @@ function TasksRoute() {
   const [viewMode, setViewMode] = useState<ViewMode>('board');
   const [taskFormOpen, setTaskFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [taskForm, setTaskForm] = useState<TaskFormState>(emptyTaskForm);
+  const [taskFormDefaults, setTaskFormDefaults] =
+    useState<TaskFormState>(emptyTaskForm);
 
   const tasksQuery = useQuery({
     queryKey: ['tasks', filters],
@@ -204,13 +204,13 @@ function TasksRoute() {
 
   const openCreateTask = () => {
     setEditingTask(null);
-    setTaskForm(emptyTaskForm);
+    setTaskFormDefaults(emptyTaskForm);
     setTaskFormOpen(true);
   };
 
   const openEditTask = (task: Task) => {
     setEditingTask(task);
-    setTaskForm({
+    setTaskFormDefaults({
       title: task.title,
       description: task.description ?? '',
       issueType: task.issueType,
@@ -233,17 +233,16 @@ function TasksRoute() {
   const closeTaskForm = () => {
     setTaskFormOpen(false);
     setEditingTask(null);
-    setTaskForm(emptyTaskForm);
+    setTaskFormDefaults(emptyTaskForm);
   };
 
-  const saveTask = () => {
-    const payload = taskFormToPayload(taskForm, editingTask);
+  const saveTask = (payload: CreateTaskRequest) => {
     if (editingTask) {
       updateTaskMutation.mutate({ id: editingTask.id, payload });
       return;
     }
 
-    createTaskMutation.mutate(payload as CreateTaskRequest);
+    createTaskMutation.mutate(payload);
   };
 
   const deleteTask = (task: Task) => {
@@ -259,12 +258,13 @@ function TasksRoute() {
   return (
     <>
       <TaskFormModal
+        key={editingTask?.id ?? 'new'}
         assignableUsers={assignableUsers}
+        editingTask={editingTask}
         epicOptions={epicOptions}
         error={mutationError}
-        form={taskForm}
+        defaultValues={taskFormDefaults}
         mode={editingTask ? 'edit' : 'create'}
-        onChange={setTaskForm}
         onClose={closeTaskForm}
         onDelete={editingTask ? () => deleteTask(editingTask) : undefined}
         onSave={saveTask}
