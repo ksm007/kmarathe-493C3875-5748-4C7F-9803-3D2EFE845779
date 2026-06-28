@@ -4,13 +4,14 @@ A full-stack Nx monorepo with JWT auth, role-based access control, AI-powered ta
 
 ## Monorepo Layout
 
-| Package | Description |
-|---|---|
-| `apps/api` | NestJS REST API — auth, RBAC, tasks, AI, audit, reports |
-| `apps/dashboard` | Angular 20 + Tailwind + NgRx SPA |
-| `libs/data` | Shared enums, DTOs, and models (client + server) |
-| `libs/auth` | Permission helpers and NestJS decorators |
-| `libs/ai` | Embeddings, RAG, intent parsing, guardrails |
+| Package          | Description                                                       |
+| ---------------- | ----------------------------------------------------------------- |
+| `apps/api`       | NestJS REST API — auth, RBAC, tasks, AI, audit, reports           |
+| `apps/web`       | React + TanStack Start + Mantine SPA (active frontend)            |
+| `apps/dashboard` | Angular 20 + Tailwind + NgRx SPA (behavior reference during port) |
+| `libs/data`      | Shared enums, DTOs, and models (client + server)                  |
+| `libs/auth`      | Permission helpers and NestJS decorators                          |
+| `libs/ai`        | Embeddings, RAG, intent parsing, guardrails                       |
 
 ---
 
@@ -29,16 +30,17 @@ npm run db:seed
 
 ```bash
 npm run dev:api        # http://localhost:4000/api
-npm run dev:dashboard  # http://localhost:4200
+npm run dev:web        # http://localhost:4300  (React/TanStack frontend)
+npm run dev:dashboard  # http://localhost:4200  (Angular reference, read-only during port)
 ```
 
 **Seeded accounts:**
 
-| Email | Password | Role |
-|---|---|---|
-| `owner@acme.test` | `Password123!` | Owner |
-| `admin@acme.test` | `Password123!` | Admin |
-| `viewer@acme.test` | `Password123!` | Viewer |
+| Email                   | Password       | Role              |
+| ----------------------- | -------------- | ----------------- |
+| `owner@acme.test`       | `Password123!` | Owner             |
+| `admin@acme.test`       | `Password123!` | Admin             |
+| `viewer@acme.test`      | `Password123!` | Viewer            |
 | `field-admin@acme.test` | `Password123!` | Admin (child org) |
 
 ---
@@ -46,6 +48,7 @@ npm run dev:dashboard  # http://localhost:4200
 ## Features
 
 ### Task Board
+
 - Kanban board with **Board / List / Analytics** view modes
 - CDK drag-and-drop for reordering and moving tasks between columns
 - Filters: search, category, sort — all debounced and synced to NgRx store
@@ -53,6 +56,7 @@ npm run dev:dashboard  # http://localhost:4200
 - Keyboard shortcuts: `C` create · `/` focus search · `1/2/3` switch views · `Esc` close modal
 
 ### Semantic Duplicate Detection
+
 Before saving a new task the API embeds the title and description using a bag-of-words cosine similarity model and compares against every existing task in the organisation's scope.
 
 - Threshold: **0.80** cosine similarity
@@ -62,11 +66,12 @@ Before saving a new task the API embeds the title and description using a bag-of
 - All blocked attempts are recorded in the audit log with `reason: duplicate_detected`
 
 ### AI Chat
+
 Natural-language interface grounded on the user's own task corpus.
 
 - **Intent classification**: `create_task` · `update_task` · `delete_task` · `query`
 - **Create from chat**: parses `title as X`, `description as X`, priority, due date, and tags from free text
-  - Example: *"a task with high priority and title of task as Security Update and description of task as update the security for auth"*
+  - Example: _"a task with high priority and title of task as Security Update and description of task as update the security for auth"_
 - **Query**: semantic RAG retrieval — answers are grounded on retrieved tasks only, formatted as bullet lists, no task IDs exposed
 - **Pending actions**: mutations require a Confirm step before executing
 - **Streaming**: SSE-based token streaming with live typing indicator
@@ -74,7 +79,9 @@ Natural-language interface grounded on the user's own task corpus.
 - **D3 similarity chart** in the sidebar showing match scores for the latest cited tasks
 
 ### AI Standup Report
+
 `GET /api/reports/standup` queries all tasks updated in the last 24 hours, builds a structured prompt, and returns a markdown report with:
+
 - Key accomplishments
 - Work in progress
 - Upcoming priorities
@@ -85,18 +92,20 @@ The frontend renders the markdown with custom CSS (headers, styled list cards, f
 
 ### Role-Based Access Control
 
-| Role | Scope |
-|---|---|
-| `owner` | Own org + all direct child organisations |
-| `admin` | Own organisation only |
-| `viewer` | Read-only, own organisation only |
+| Role     | Scope                                    |
+| -------- | ---------------------------------------- |
+| `owner`  | Own org + all direct child organisations |
+| `admin`  | Own organisation only                    |
+| `viewer` | Read-only, own organisation only         |
 
 Permissions: `task:read` · `task:create` · `task:update` · `task:delete` · `task:reorder` · `audit:read`
 
 ### Audit Log
+
 Every protected action is recorded — including denied attempts and duplicate blocks — with actor, timestamp, resource, and reason. Readable by Admin/Owner only.
 
 ### Team Management
+
 Admin/Owner can invite new members, assign roles, and remove users from their organisation scope.
 
 ---
@@ -105,19 +114,30 @@ Admin/Owner can invite new members, assign roles, and remove users from their or
 
 ### Backend Modules
 
-| Module | Responsibility |
-|---|---|
-| `auth` | Login, JWT validation, global guard, permission guard |
-| `tasks` | Scoped CRUD, filters, reorder, duplicate detection |
-| `ai` | Embedding sync, RAG retrieval, intent execution, chat history |
-| `chat` | SSE streaming, pending action lifecycle |
-| `reports` | Standup report generation |
-| `users` | Team member management |
-| `audit` | Persistent audit log write + restricted read |
-| `organizations` | 2-level hierarchy access resolution |
-| `database` | TypeORM config, entities, migrations |
+| Module          | Responsibility                                                |
+| --------------- | ------------------------------------------------------------- |
+| `auth`          | Login, JWT validation, global guard, permission guard         |
+| `tasks`         | Scoped CRUD, filters, reorder, duplicate detection            |
+| `ai`            | Embedding sync, RAG retrieval, intent execution, chat history |
+| `chat`          | SSE streaming, pending action lifecycle                       |
+| `reports`       | Standup report generation                                     |
+| `users`         | Team member management                                        |
+| `audit`         | Persistent audit log write + restricted read                  |
+| `organizations` | 2-level hierarchy access resolution                           |
+| `database`      | TypeORM config, entities, migrations                          |
 
-### Frontend Structure
+### Frontend Structure (`apps/web` — React/TanStack Start)
+
+File-based routes live in `apps/web/src/routes`; `routeTree.gen.ts` is auto-generated by the Vite plugin and must not be edited by hand.
+Auth state is stored in `localStorage` (bearer token); routes that depend on the session set `ssr: false`.
+
+- **Route layouts**: `_authed` (redirects to `/login` when no session), `_authed/_admin` (owner/admin only — redirects viewers to `/tasks`)
+- **`useCurrentUser()`**: reads the signed-in user via the `['me']` TanStack Query cache key; keeps the org switcher reactive
+- **Route loaders**: use `queryClient.prefetchQuery` to warm the cache without throwing on fetch failure
+- **Feature modules**: `features/auth` (login/signup landing), `features/tasks` (board, task form, task detail)
+- **Shared lib**: `lib/api-client` (typed API wrappers), `lib/auth-storage` (localStorage session), `lib/query-client` (shared singleton), `lib/format` (error/bytes/metadata formatters)
+
+### Angular Reference Frontend (`apps/dashboard`)
 
 - **NgRx slices**: `auth`, `tasks`, `audit`
 - **HTTP interceptor**: bearer token attachment
@@ -129,12 +149,12 @@ Admin/Owner can invite new members, assign roles, and remove users from their or
 
 ### AI Library (`libs/ai`)
 
-| Module | Purpose |
-|---|---|
-| `embeddings` | 64-dim bag-of-words `embedText` + `cosineSimilarity` |
-| `rag` | `buildTaskDocument`, `buildGroundedAnswerPrompt` |
-| `intents` | `classifyIntent`, `parseIntent` — title/description/priority/tag extraction |
-| `guardrails` | Prompt injection detection, canary token leak detection |
+| Module       | Purpose                                                                     |
+| ------------ | --------------------------------------------------------------------------- |
+| `embeddings` | 64-dim bag-of-words `embedText` + `cosineSimilarity`                        |
+| `rag`        | `buildTaskDocument`, `buildGroundedAnswerPrompt`                            |
+| `intents`    | `classifyIntent`, `parseIntent` — title/description/priority/tag extraction |
+| `guardrails` | Prompt injection detection, canary token leak detection                     |
 
 ---
 
@@ -223,11 +243,12 @@ erDiagram
 ## API Reference
 
 ### Auth
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/api/auth/login` | Returns JWT + user profile |
+
+| Method | Path                 | Description                   |
+| ------ | -------------------- | ----------------------------- |
+| `POST` | `/api/auth/login`    | Returns JWT + user profile    |
 | `POST` | `/api/auth/register` | Creates account + returns JWT |
-| `GET` | `/api/auth/me` | Current user from JWT |
+| `GET`  | `/api/auth/me`       | Current user from JWT         |
 
 The public auth and invitation endpoints (`login`, `register`, `forgot-password`,
 `reset-password`, invite create/accept) are rate limited per IP and return `429`
@@ -236,49 +257,53 @@ once the window is exceeded. Login additionally locks an account for
 also returning `429`; a successful login clears the counter.
 
 ### Tasks
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/tasks` | List tasks (scoped, filterable) |
-| `POST` | `/api/tasks` | Create task — runs duplicate check first |
-| `GET` | `/api/tasks/:id` | Task detail with activity log |
-| `PUT` | `/api/tasks/:id` | Partial update |
-| `DELETE` | `/api/tasks/:id` | Delete |
-| `PATCH` | `/api/tasks/reorder` | Persist drag-and-drop order + status |
+
+| Method   | Path                 | Description                              |
+| -------- | -------------------- | ---------------------------------------- |
+| `GET`    | `/api/tasks`         | List tasks (scoped, filterable)          |
+| `POST`   | `/api/tasks`         | Create task — runs duplicate check first |
+| `GET`    | `/api/tasks/:id`     | Task detail with activity log            |
+| `PUT`    | `/api/tasks/:id`     | Partial update                           |
+| `DELETE` | `/api/tasks/:id`     | Delete                                   |
+| `PATCH`  | `/api/tasks/reorder` | Persist drag-and-drop order + status     |
 
 **Duplicate detection response (400):**
+
 ```json
 {
   "message": "Potential duplicate tasks detected",
-  "duplicates": [
-    { "id": "uuid", "title": "Fix login bug", "similarity": 0.847 }
-  ]
+  "duplicates": [{ "id": "uuid", "title": "Fix login bug", "similarity": 0.847 }]
 }
 ```
 
 ### AI Chat
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/api/chat/ask` | SSE stream — returns chunks then full message |
-| `GET` | `/api/chat/history` | Conversation history |
-| `POST` | `/api/chat/pending-actions/:id/confirm` | Execute a pending mutation |
-| `POST` | `/api/chat/pending-actions/:id/cancel` | Dismiss a pending mutation |
+
+| Method | Path                                    | Description                                   |
+| ------ | --------------------------------------- | --------------------------------------------- |
+| `POST` | `/api/chat/ask`                         | SSE stream — returns chunks then full message |
+| `GET`  | `/api/chat/history`                     | Conversation history                          |
+| `POST` | `/api/chat/pending-actions/:id/confirm` | Execute a pending mutation                    |
+| `POST` | `/api/chat/pending-actions/:id/cancel`  | Dismiss a pending mutation                    |
 
 ### Reports
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/reports/standup` | AI standup report for last 24h |
+
+| Method | Path                   | Description                    |
+| ------ | ---------------------- | ------------------------------ |
+| `GET`  | `/api/reports/standup` | AI standup report for last 24h |
 
 ### Users
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/users` | List users in scope |
-| `POST` | `/api/users` | Invite team member (Admin+) |
-| `DELETE` | `/api/users/:id` | Remove member (Admin+) |
+
+| Method   | Path             | Description                 |
+| -------- | ---------------- | --------------------------- |
+| `GET`    | `/api/users`     | List users in scope         |
+| `POST`   | `/api/users`     | Invite team member (Admin+) |
+| `DELETE` | `/api/users/:id` | Remove member (Admin+)      |
 
 ### Audit
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/audit-log` | Paginated audit log (Admin/Owner) |
+
+| Method | Path             | Description                       |
+| ------ | ---------------- | --------------------------------- |
+| `GET`  | `/api/audit-log` | Paginated audit log (Admin/Owner) |
 
 ---
 
@@ -291,6 +316,7 @@ npx nx test auth                  # auth lib tests
 ```
 
 Test coverage includes:
+
 - Permission and org scope helpers (`libs/auth`)
 - Duplicate detection math and threshold validation (`tasks-dedup.spec.ts`)
 - Intent parsing — title/description/priority extraction from free text (`intents.spec.ts`)
@@ -302,18 +328,22 @@ Test coverage includes:
 ## Production Deployment
 
 **Build:**
+
 ```bash
 npx nx build api --configuration=production
+npx nx build web --configuration=production
 npx nx build dashboard --configuration=production
 ```
 
 **Start API with PM2:**
+
 ```bash
 pm2 start ecosystem.config.js --env production
 pm2 save && pm2 startup
 ```
 
 **Required env vars:**
+
 ```
 DATABASE_URL=postgresql://...
 JWT_SECRET=...
@@ -349,6 +379,7 @@ CLOUDINARY_URL=cloudinary://<api_key>:<api_secret>@<cloud_name>
 > proxy's address. See the Nginx config below for the matching header.
 
 **Nginx — serve dashboard SPA + proxy API:**
+
 ```nginx
 location /turbo-vets/ {
     alias /path/to/dist/apps/dashboard/browser/;

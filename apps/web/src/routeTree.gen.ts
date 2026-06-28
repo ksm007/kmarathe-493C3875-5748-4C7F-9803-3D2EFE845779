@@ -8,120 +8,397 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
-import { Route as AcceptInviteRouteImport } from './routes/accept-invite'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as rootRouteImport } from './routes/__root';
+import { Route as SignupRouteImport } from './routes/signup';
+import { Route as ResetPasswordRouteImport } from './routes/reset-password';
+import { Route as LoginRouteImport } from './routes/login';
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password';
+import { Route as AcceptInviteRouteImport } from './routes/accept-invite';
+import { Route as AuthedRouteImport } from './routes/_authed';
+import { Route as AuthedIndexRouteImport } from './routes/_authed.index';
+import { Route as AuthedTeamRouteImport } from './routes/_authed.team';
+import { Route as AuthedTasksRouteImport } from './routes/_authed.tasks';
+import { Route as AuthedAiChatRouteImport } from './routes/_authed.ai-chat';
+import { Route as AuthedAdminRouteImport } from './routes/_authed._admin';
+import { Route as AuthedTasksIndexRouteImport } from './routes/_authed.tasks.index';
+import { Route as AuthedTasksIdRouteImport } from './routes/_authed.tasks.$id';
+import { Route as AuthedReportsStandupRouteImport } from './routes/_authed.reports.standup';
+import { Route as AuthedAdminSprintsRouteImport } from './routes/_authed._admin.sprints';
+import { Route as AuthedAdminAuditLogRouteImport } from './routes/_authed._admin.audit-log';
 
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const AcceptInviteRoute = AcceptInviteRouteImport.update({
   id: '/accept-invite',
   path: '/accept-invite',
   getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
+} as any);
+const AuthedRoute = AuthedRouteImport.update({
+  id: '/_authed',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const AuthedIndexRoute = AuthedIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
+  getParentRoute: () => AuthedRoute,
+} as any);
+const AuthedTeamRoute = AuthedTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => AuthedRoute,
+} as any);
+const AuthedTasksRoute = AuthedTasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => AuthedRoute,
+} as any);
+const AuthedAiChatRoute = AuthedAiChatRouteImport.update({
+  id: '/ai-chat',
+  path: '/ai-chat',
+  getParentRoute: () => AuthedRoute,
+} as any);
+const AuthedAdminRoute = AuthedAdminRouteImport.update({
+  id: '/_admin',
+  getParentRoute: () => AuthedRoute,
+} as any);
+const AuthedTasksIndexRoute = AuthedTasksIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthedTasksRoute,
+} as any);
+const AuthedTasksIdRoute = AuthedTasksIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AuthedTasksRoute,
+} as any);
+const AuthedReportsStandupRoute = AuthedReportsStandupRouteImport.update({
+  id: '/reports/standup',
+  path: '/reports/standup',
+  getParentRoute: () => AuthedRoute,
+} as any);
+const AuthedAdminSprintsRoute = AuthedAdminSprintsRouteImport.update({
+  id: '/sprints',
+  path: '/sprints',
+  getParentRoute: () => AuthedAdminRoute,
+} as any);
+const AuthedAdminAuditLogRoute = AuthedAdminAuditLogRouteImport.update({
+  id: '/audit-log',
+  path: '/audit-log',
+  getParentRoute: () => AuthedAdminRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/accept-invite': typeof AcceptInviteRoute
-  '/forgot-password': typeof ForgotPasswordRoute
-  '/reset-password': typeof ResetPasswordRoute
+  '/': typeof AuthedIndexRoute;
+  '/accept-invite': typeof AcceptInviteRoute;
+  '/forgot-password': typeof ForgotPasswordRoute;
+  '/login': typeof LoginRoute;
+  '/reset-password': typeof ResetPasswordRoute;
+  '/signup': typeof SignupRoute;
+  '/ai-chat': typeof AuthedAiChatRoute;
+  '/tasks': typeof AuthedTasksRouteWithChildren;
+  '/team': typeof AuthedTeamRoute;
+  '/audit-log': typeof AuthedAdminAuditLogRoute;
+  '/sprints': typeof AuthedAdminSprintsRoute;
+  '/reports/standup': typeof AuthedReportsStandupRoute;
+  '/tasks/$id': typeof AuthedTasksIdRoute;
+  '/tasks/': typeof AuthedTasksIndexRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/accept-invite': typeof AcceptInviteRoute
-  '/forgot-password': typeof ForgotPasswordRoute
-  '/reset-password': typeof ResetPasswordRoute
+  '/accept-invite': typeof AcceptInviteRoute;
+  '/forgot-password': typeof ForgotPasswordRoute;
+  '/login': typeof LoginRoute;
+  '/reset-password': typeof ResetPasswordRoute;
+  '/signup': typeof SignupRoute;
+  '/': typeof AuthedIndexRoute;
+  '/ai-chat': typeof AuthedAiChatRoute;
+  '/team': typeof AuthedTeamRoute;
+  '/audit-log': typeof AuthedAdminAuditLogRoute;
+  '/sprints': typeof AuthedAdminSprintsRoute;
+  '/reports/standup': typeof AuthedReportsStandupRoute;
+  '/tasks/$id': typeof AuthedTasksIdRoute;
+  '/tasks': typeof AuthedTasksIndexRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/accept-invite': typeof AcceptInviteRoute
-  '/forgot-password': typeof ForgotPasswordRoute
-  '/reset-password': typeof ResetPasswordRoute
+  __root__: typeof rootRouteImport;
+  '/_authed': typeof AuthedRouteWithChildren;
+  '/accept-invite': typeof AcceptInviteRoute;
+  '/forgot-password': typeof ForgotPasswordRoute;
+  '/login': typeof LoginRoute;
+  '/reset-password': typeof ResetPasswordRoute;
+  '/signup': typeof SignupRoute;
+  '/_authed/_admin': typeof AuthedAdminRouteWithChildren;
+  '/_authed/ai-chat': typeof AuthedAiChatRoute;
+  '/_authed/tasks': typeof AuthedTasksRouteWithChildren;
+  '/_authed/team': typeof AuthedTeamRoute;
+  '/_authed/': typeof AuthedIndexRoute;
+  '/_authed/_admin/audit-log': typeof AuthedAdminAuditLogRoute;
+  '/_authed/_admin/sprints': typeof AuthedAdminSprintsRoute;
+  '/_authed/reports/standup': typeof AuthedReportsStandupRoute;
+  '/_authed/tasks/$id': typeof AuthedTasksIdRoute;
+  '/_authed/tasks/': typeof AuthedTasksIndexRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/accept-invite' | '/forgot-password' | '/reset-password'
-  fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/accept-invite' | '/forgot-password' | '/reset-password'
-  id:
-    | '__root__'
+  fileRoutesByFullPath: FileRoutesByFullPath;
+  fullPaths:
     | '/'
     | '/accept-invite'
     | '/forgot-password'
+    | '/login'
     | '/reset-password'
-  fileRoutesById: FileRoutesById
+    | '/signup'
+    | '/ai-chat'
+    | '/tasks'
+    | '/team'
+    | '/audit-log'
+    | '/sprints'
+    | '/reports/standup'
+    | '/tasks/$id'
+    | '/tasks/';
+  fileRoutesByTo: FileRoutesByTo;
+  to:
+    | '/accept-invite'
+    | '/forgot-password'
+    | '/login'
+    | '/reset-password'
+    | '/signup'
+    | '/'
+    | '/ai-chat'
+    | '/team'
+    | '/audit-log'
+    | '/sprints'
+    | '/reports/standup'
+    | '/tasks/$id'
+    | '/tasks';
+  id:
+    | '__root__'
+    | '/_authed'
+    | '/accept-invite'
+    | '/forgot-password'
+    | '/login'
+    | '/reset-password'
+    | '/signup'
+    | '/_authed/_admin'
+    | '/_authed/ai-chat'
+    | '/_authed/tasks'
+    | '/_authed/team'
+    | '/_authed/'
+    | '/_authed/_admin/audit-log'
+    | '/_authed/_admin/sprints'
+    | '/_authed/reports/standup'
+    | '/_authed/tasks/$id'
+    | '/_authed/tasks/';
+  fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AcceptInviteRoute: typeof AcceptInviteRoute
-  ForgotPasswordRoute: typeof ForgotPasswordRoute
-  ResetPasswordRoute: typeof ResetPasswordRoute
+  AuthedRoute: typeof AuthedRouteWithChildren;
+  AcceptInviteRoute: typeof AcceptInviteRoute;
+  ForgotPasswordRoute: typeof ForgotPasswordRoute;
+  LoginRoute: typeof LoginRoute;
+  ResetPasswordRoute: typeof ResetPasswordRoute;
+  SignupRoute: typeof SignupRoute;
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/signup': {
+      id: '/signup';
+      path: '/signup';
+      fullPath: '/signup';
+      preLoaderRoute: typeof SignupRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/reset-password';
+      path: '/reset-password';
+      fullPath: '/reset-password';
+      preLoaderRoute: typeof ResetPasswordRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/login': {
+      id: '/login';
+      path: '/login';
+      fullPath: '/login';
+      preLoaderRoute: typeof LoginRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/forgot-password': {
-      id: '/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof ForgotPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/forgot-password';
+      path: '/forgot-password';
+      fullPath: '/forgot-password';
+      preLoaderRoute: typeof ForgotPasswordRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/accept-invite': {
-      id: '/accept-invite'
-      path: '/accept-invite'
-      fullPath: '/accept-invite'
-      preLoaderRoute: typeof AcceptInviteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/accept-invite';
+      path: '/accept-invite';
+      fullPath: '/accept-invite';
+      preLoaderRoute: typeof AcceptInviteRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/_authed': {
+      id: '/_authed';
+      path: '';
+      fullPath: '/';
+      preLoaderRoute: typeof AuthedRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/_authed/': {
+      id: '/_authed/';
+      path: '/';
+      fullPath: '/';
+      preLoaderRoute: typeof AuthedIndexRouteImport;
+      parentRoute: typeof AuthedRoute;
+    };
+    '/_authed/team': {
+      id: '/_authed/team';
+      path: '/team';
+      fullPath: '/team';
+      preLoaderRoute: typeof AuthedTeamRouteImport;
+      parentRoute: typeof AuthedRoute;
+    };
+    '/_authed/tasks': {
+      id: '/_authed/tasks';
+      path: '/tasks';
+      fullPath: '/tasks';
+      preLoaderRoute: typeof AuthedTasksRouteImport;
+      parentRoute: typeof AuthedRoute;
+    };
+    '/_authed/ai-chat': {
+      id: '/_authed/ai-chat';
+      path: '/ai-chat';
+      fullPath: '/ai-chat';
+      preLoaderRoute: typeof AuthedAiChatRouteImport;
+      parentRoute: typeof AuthedRoute;
+    };
+    '/_authed/_admin': {
+      id: '/_authed/_admin';
+      path: '';
+      fullPath: '/';
+      preLoaderRoute: typeof AuthedAdminRouteImport;
+      parentRoute: typeof AuthedRoute;
+    };
+    '/_authed/tasks/': {
+      id: '/_authed/tasks/';
+      path: '/';
+      fullPath: '/tasks/';
+      preLoaderRoute: typeof AuthedTasksIndexRouteImport;
+      parentRoute: typeof AuthedTasksRoute;
+    };
+    '/_authed/tasks/$id': {
+      id: '/_authed/tasks/$id';
+      path: '/$id';
+      fullPath: '/tasks/$id';
+      preLoaderRoute: typeof AuthedTasksIdRouteImport;
+      parentRoute: typeof AuthedTasksRoute;
+    };
+    '/_authed/reports/standup': {
+      id: '/_authed/reports/standup';
+      path: '/reports/standup';
+      fullPath: '/reports/standup';
+      preLoaderRoute: typeof AuthedReportsStandupRouteImport;
+      parentRoute: typeof AuthedRoute;
+    };
+    '/_authed/_admin/sprints': {
+      id: '/_authed/_admin/sprints';
+      path: '/sprints';
+      fullPath: '/sprints';
+      preLoaderRoute: typeof AuthedAdminSprintsRouteImport;
+      parentRoute: typeof AuthedAdminRoute;
+    };
+    '/_authed/_admin/audit-log': {
+      id: '/_authed/_admin/audit-log';
+      path: '/audit-log';
+      fullPath: '/audit-log';
+      preLoaderRoute: typeof AuthedAdminAuditLogRouteImport;
+      parentRoute: typeof AuthedAdminRoute;
+    };
   }
 }
 
+interface AuthedAdminRouteChildren {
+  AuthedAdminAuditLogRoute: typeof AuthedAdminAuditLogRoute;
+  AuthedAdminSprintsRoute: typeof AuthedAdminSprintsRoute;
+}
+
+const AuthedAdminRouteChildren: AuthedAdminRouteChildren = {
+  AuthedAdminAuditLogRoute: AuthedAdminAuditLogRoute,
+  AuthedAdminSprintsRoute: AuthedAdminSprintsRoute,
+};
+
+const AuthedAdminRouteWithChildren = AuthedAdminRoute._addFileChildren(
+  AuthedAdminRouteChildren,
+);
+
+interface AuthedTasksRouteChildren {
+  AuthedTasksIdRoute: typeof AuthedTasksIdRoute;
+  AuthedTasksIndexRoute: typeof AuthedTasksIndexRoute;
+}
+
+const AuthedTasksRouteChildren: AuthedTasksRouteChildren = {
+  AuthedTasksIdRoute: AuthedTasksIdRoute,
+  AuthedTasksIndexRoute: AuthedTasksIndexRoute,
+};
+
+const AuthedTasksRouteWithChildren = AuthedTasksRoute._addFileChildren(
+  AuthedTasksRouteChildren,
+);
+
+interface AuthedRouteChildren {
+  AuthedAdminRoute: typeof AuthedAdminRouteWithChildren;
+  AuthedAiChatRoute: typeof AuthedAiChatRoute;
+  AuthedTasksRoute: typeof AuthedTasksRouteWithChildren;
+  AuthedTeamRoute: typeof AuthedTeamRoute;
+  AuthedIndexRoute: typeof AuthedIndexRoute;
+  AuthedReportsStandupRoute: typeof AuthedReportsStandupRoute;
+}
+
+const AuthedRouteChildren: AuthedRouteChildren = {
+  AuthedAdminRoute: AuthedAdminRouteWithChildren,
+  AuthedAiChatRoute: AuthedAiChatRoute,
+  AuthedTasksRoute: AuthedTasksRouteWithChildren,
+  AuthedTeamRoute: AuthedTeamRoute,
+  AuthedIndexRoute: AuthedIndexRoute,
+  AuthedReportsStandupRoute: AuthedReportsStandupRoute,
+};
+
+const AuthedRouteWithChildren =
+  AuthedRoute._addFileChildren(AuthedRouteChildren);
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  AuthedRoute: AuthedRouteWithChildren,
   AcceptInviteRoute: AcceptInviteRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
-}
+  SignupRoute: SignupRoute,
+};
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+  ._addFileTypes<FileRouteTypes>();
 
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { getRouter } from './router.tsx';
+import type { createStart } from '@tanstack/react-start';
 declare module '@tanstack/react-start' {
   interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
+    ssr: true;
+    router: Awaited<ReturnType<typeof getRouter>>;
   }
 }

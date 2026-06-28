@@ -25,7 +25,7 @@ function ResetPasswordRoute() {
       apiClient.resetPassword(payload),
     onSuccess: () => {
       setCompleted(true);
-      window.setTimeout(() => void navigate({ to: '/' }), 1200);
+      window.setTimeout(() => void navigate({ to: '/login' }), 1200);
     },
   });
 
@@ -80,7 +80,7 @@ function ResetPasswordRoute() {
         </Stack>
       </form>
 
-      <Anchor component={Link} size="sm" to="/">
+      <Anchor component={Link} size="sm" to="/login">
         Go to login
       </Anchor>
     </AuthCard>
