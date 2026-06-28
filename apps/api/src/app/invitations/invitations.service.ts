@@ -34,14 +34,18 @@ export class InvitationsService {
     const org = requester.organizationName;
     await this.emailService.sendInvitation(email, rawToken, org, requester.fullName);
 
-    await this.auditService.log({
-      actor: requester,
-      action: 'invitations.create',
-      resource: 'invitation',
-      organizationId: requester.organizationId,
-      allowed: true,
-      metadata: { role, targetEmail: email },
-    });
+    try {
+      await this.auditService.log({
+        actor: requester,
+        action: 'invitations.create',
+        resource: 'invitation',
+        organizationId: requester.organizationId,
+        allowed: true,
+        metadata: { role, targetEmail: email },
+      });
+    } catch {
+      // audit failure must not surface as an invite failure
+    }
   }
 
   async list(requester: AuthenticatedUser): Promise<InvitationResponse[]> {
