@@ -349,7 +349,7 @@ function TasksRoute() {
               placeholder="All sprints"
               clearable
               data={[
-                { value: 'none', label: 'Backlog (no sprint)' },
+                { value: 'backlog', label: 'Backlog (no sprint)' },
                 ...sprints.map((s: Sprint) => ({
                   value: s.id,
                   label: s.name,

@@ -117,7 +117,13 @@ const rbacMatrix = [
     viewer: false,
   },
   {
-    action: 'Remove members',
+    action: 'Remove Admins/Viewers',
+    owner: true,
+    admin: true,
+    viewer: false,
+  },
+  {
+    action: 'Remove Owners',
     owner: true,
     admin: false,
     viewer: false,
