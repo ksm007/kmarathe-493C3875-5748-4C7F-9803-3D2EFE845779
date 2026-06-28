@@ -11,6 +11,7 @@ import { PermissionsGuard } from './guards/permissions.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { LoginAttemptService } from './login-attempt.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AuditModule } from '../audit/audit.module';
 import { EmailModule } from '../email/email.module';
 import {
   InvitationEntity,
@@ -24,6 +25,7 @@ import {
   imports: [
     ConfigModule,
     PassportModule,
+    AuditModule,
     EmailModule,
     TypeOrmModule.forFeature([
       UserEntity,

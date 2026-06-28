@@ -3,6 +3,7 @@ import { InvitationResponse, Role } from '@nx-temp/data';
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
+import { AuditService } from '../audit/audit.service';
 import { AuthService } from '../auth/auth.service';
 import { InvitationEntity } from '../database/entities';
 import { EmailService } from '../email/email.service';
@@ -13,7 +14,8 @@ export class InvitationsService {
     private readonly authService: AuthService,
     private readonly emailService: EmailService,
     @InjectRepository(InvitationEntity)
-    private readonly invitationsRepo: Repository<InvitationEntity>
+    private readonly invitationsRepo: Repository<InvitationEntity>,
+    private readonly auditService: AuditService,
   ) {}
 
   async create(requester: AuthenticatedUser, email: string, role: Role): Promise<void> {
@@ -31,6 +33,16 @@ export class InvitationsService {
 
     const org = requester.organizationName;
     await this.emailService.sendInvitation(email, rawToken, org, requester.fullName);
+
+    await this.auditService.log({
+      actor: requester,
+      action: 'invitations.create',
+      resource: 'invitation',
+      resourceId: email,
+      organizationId: requester.organizationId,
+      allowed: true,
+      metadata: { role, targetEmail: email },
+    });
   }
 
   async list(requester: AuthenticatedUser): Promise<InvitationResponse[]> {
