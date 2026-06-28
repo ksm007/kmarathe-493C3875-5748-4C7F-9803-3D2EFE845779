@@ -331,6 +331,9 @@ export class TasksService {
     const previousSprintId = task.sprintId;
     const previousParentEpicId = task.parentEpicId;
     const previousAcceptanceCriteria = task.acceptanceCriteria ?? [];
+    const previousAssigneeId = task.assigneeId;
+    const previousAssigneeName = task.assignee?.fullName ?? null;
+    const previousStoryPoints = task.storyPoints;
 
     if (payload.title !== undefined) {
       task.title = payload.title;
@@ -474,6 +477,46 @@ export class TasksService {
           completedCount: task.acceptanceCriteria.filter(
             (item) => item.completed,
           ).length,
+        },
+      );
+    }
+
+    if (
+      payload.assigneeId !== undefined &&
+      previousAssigneeId !== task.assigneeId
+    ) {
+      const hydratedForAssignee = await this.loadTaskWithRelations(task.id);
+      const newAssigneeName = hydratedForAssignee?.assignee?.fullName ?? null;
+      await this.recordActivity(
+        task,
+        user,
+        TaskActivityType.AssigneeChanged,
+        task.assigneeId
+          ? `Assignee changed to ${newAssigneeName ?? task.assigneeId}`
+          : `Assignee removed`,
+        {
+          from: previousAssigneeId,
+          fromName: previousAssigneeName,
+          to: task.assigneeId,
+          toName: newAssigneeName,
+        },
+      );
+    }
+
+    if (
+      payload.storyPoints !== undefined &&
+      previousStoryPoints !== task.storyPoints
+    ) {
+      await this.recordActivity(
+        task,
+        user,
+        TaskActivityType.StoryPointChanged,
+        task.storyPoints !== null
+          ? `Story points changed from ${previousStoryPoints ?? 'unset'} to ${task.storyPoints}`
+          : `Story points cleared`,
+        {
+          from: previousStoryPoints,
+          to: task.storyPoints,
         },
       );
     }

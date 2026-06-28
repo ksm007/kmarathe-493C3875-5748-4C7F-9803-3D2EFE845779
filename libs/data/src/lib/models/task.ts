@@ -97,6 +97,8 @@ export enum TaskActivityType {
   EpicChanged = 'epic_changed',
   SprintChanged = 'sprint_changed',
   AcceptanceCriteriaChanged = 'acceptance_criteria_changed',
+  AssigneeChanged = 'assignee_changed',
+  StoryPointChanged = 'story_point_changed',
   Comment = 'comment',
 }
 
