@@ -43,8 +43,8 @@ export type AuthMode = 'login' | 'signup';
 export function AuthLanding({ mode }: { mode: AuthMode }) {
   const navigate = useNavigate();
   const [loginForm, setLoginForm] = useState<LoginRequest>({
-    email: 'owner@acme.test',
-    password: 'Password123!',
+    email: '',
+    password: '',
   });
   const [signupForm, setSignupForm] = useState<RegisterRequest>({
     organizationName: '',
