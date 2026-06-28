@@ -33,4 +33,3 @@ The authenticated area is a pathless `_authed` layout (`ssr: false`) whose `befo
 
 Route `loader`s use `queryClient.prefetchQuery` (the shared singleton from `~/lib/query-client`), not `ensureQueryData`: prefetch warms the cache without throwing on fetch failure, so components keep their own `useQuery` loading/error UI instead of crashing the route into the error boundary.
 Live session/user reads go through `useCurrentUser()` (the `['me']` query), so the org switcher stays reactive.
->>>>>>> c20816e (Decompose web mega-route into TanStack routes with guards and loaders)
