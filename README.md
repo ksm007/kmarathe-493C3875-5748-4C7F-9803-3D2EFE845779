@@ -186,6 +186,7 @@ erDiagram
     string fullName
     string role
     string organizationId
+    string googleId
   }
 
   TASK {
@@ -245,13 +246,14 @@ erDiagram
 
 ### Auth
 
-| Method | Path                 | Description                   |
-| ------ | -------------------- | ----------------------------- |
-| `POST` | `/api/auth/login`    | Returns JWT + user profile    |
-| `POST` | `/api/auth/register` | Creates account + returns JWT |
-| `GET`  | `/api/auth/me`       | Current user from JWT         |
+| Method | Path                 | Description                                                              |
+| ------ | -------------------- | ------------------------------------------------------------------------ |
+| `POST` | `/api/auth/login`    | Returns JWT + user profile                                               |
+| `POST` | `/api/auth/register` | Creates account + returns JWT                                            |
+| `POST` | `/api/auth/google`   | Google ID token sign-in; returns `{ kind: 'session', ... }` or `{ kind: 'needs-org', ... }` |
+| `GET`  | `/api/auth/me`       | Current user from JWT                                                    |
 
-The public auth and invitation endpoints (`login`, `register`, `forgot-password`,
+The public auth and invitation endpoints (`login`, `register`, `google`, `forgot-password`,
 `reset-password`, invite create/accept) are rate limited per IP and return `429`
 once the window is exceeded. Login additionally locks an account for
 `LOGIN_LOCKOUT_SECONDS` after `LOGIN_MAX_FAILED_ATTEMPTS` consecutive failures,
@@ -374,6 +376,10 @@ CLOUDINARY_URL=cloudinary://<api_key>:<api_secret>@<cloud_name>
 # CLOUDINARY_CLOUD_NAME=...
 # CLOUDINARY_API_KEY=...
 # CLOUDINARY_API_SECRET=...
+
+# Google sign-in (required to enable the Google button)
+GOOGLE_CLIENT_ID=         # server-side ID token verification (google-auth-library)
+VITE_GOOGLE_CLIENT_ID=    # embedded into the frontend bundle at build time; must match GOOGLE_CLIENT_ID
 ```
 
 > Behind a reverse proxy, keep `TRUST_PROXY=1` (the default) so per-IP rate
