@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import {
+  ActionIcon,
   Alert,
   Badge,
   Box,
   Button,
   Center,
+  Checkbox,
   Divider,
   FileInput,
   Group,
@@ -14,14 +16,21 @@ import {
   SimpleGrid,
   Stack,
   Text,
+  TextInput,
   Textarea,
 } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { TaskActivity, TaskAttachment, TaskDetail } from '@nx-temp/data';
+import type {
+  AcceptanceCriteriaItem,
+  TaskActivity,
+  TaskAttachment,
+  TaskDetail,
+} from '@nx-temp/data';
 import {
   Image as ImageIcon,
   MessageSquare,
   Paperclip,
+  Plus,
   Trash2,
 } from 'lucide-react';
 import { apiClient } from '~/lib/api-client';
@@ -87,11 +96,24 @@ export function TaskDetailModal({
     onSuccess: refreshDetail,
   });
 
+  const updateCriteriaMutation = useMutation({
+    mutationFn: (criteria: AcceptanceCriteriaItem[]) =>
+      apiClient.updateTask(taskId, {
+        acceptanceCriteria: criteria.map((c) => ({
+          id: c.id,
+          text: c.text,
+          completed: c.completed,
+        })),
+      }),
+    onSuccess: refreshDetail,
+  });
+
   const task = detailQuery.data;
   const actionError = formatError(
     commentMutation.error ??
       uploadMutation.error ??
-      deleteAttachmentMutation.error,
+      deleteAttachmentMutation.error ??
+      updateCriteriaMutation.error,
   );
 
   const submitComment = () => {
@@ -123,7 +145,23 @@ export function TaskDetailModal({
         <Alert color="red">{formatError(detailQuery.error)}</Alert>
       ) : task ? (
         <Stack gap="lg">
-          <TaskDetailSummary task={task} />
+          <TaskDetailSummary
+            task={task}
+            onToggleCriterion={(criterionId, checked) => {
+              const updated = task.acceptanceCriteria.map((c) =>
+                c.id === criterionId ? { ...c, completed: checked } : c,
+              );
+              updateCriteriaMutation.mutate(updated);
+            }}
+            onAddCriterion={(text) => {
+              const updated = [
+                ...task.acceptanceCriteria,
+                { id: '', text, completed: false },
+              ];
+              updateCriteriaMutation.mutate(updated);
+            }}
+            criteriaUpdating={updateCriteriaMutation.isPending}
+          />
 
           <Divider />
 
@@ -209,7 +247,18 @@ export function TaskDetailModal({
   );
 }
 
-function TaskDetailSummary({ task }: { task: TaskDetail }) {
+function TaskDetailSummary({
+  task,
+  onToggleCriterion,
+  onAddCriterion,
+  criteriaUpdating,
+}: {
+  task: TaskDetail;
+  onToggleCriterion: (id: string, checked: boolean) => void;
+  onAddCriterion: (text: string) => void;
+  criteriaUpdating: boolean;
+}) {
+  const [newCriterionText, setNewCriterionText] = useState('');
   const completedCriteria = task.acceptanceCriteria.filter(
     (item) => item.completed,
   ).length;
@@ -255,6 +304,55 @@ function TaskDetailSummary({ task }: { task: TaskDetail }) {
           {completedCriteria}/{task.acceptanceCriteria.length}
         </Text>
       </SimpleGrid>
+
+      {task.acceptanceCriteria.length > 0 ? (
+        <Stack gap="xs">
+          <Text size="sm" fw={700}>
+            Acceptance criteria
+          </Text>
+          {task.acceptanceCriteria.map((criterion) => (
+            <Checkbox
+              key={criterion.id}
+              label={criterion.text}
+              checked={criterion.completed}
+              disabled={criteriaUpdating}
+              onChange={(event) =>
+                onToggleCriterion(criterion.id, event.currentTarget.checked)
+              }
+            />
+          ))}
+        </Stack>
+      ) : null}
+
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          const text = newCriterionText.trim();
+          if (text) {
+            onAddCriterion(text);
+            setNewCriterionText('');
+          }
+        }}
+      >
+        <Group gap="xs" align="flex-end">
+          <TextInput
+            placeholder="Add acceptance criterion"
+            value={newCriterionText}
+            onChange={(event) => setNewCriterionText(event.target.value)}
+            flex={1}
+            size="sm"
+          />
+          <ActionIcon
+            type="submit"
+            variant="light"
+            size="lg"
+            disabled={!newCriterionText.trim() || criteriaUpdating}
+            aria-label="Add criterion"
+          >
+            <Plus size={16} />
+          </ActionIcon>
+        </Group>
+      </form>
     </Stack>
   );
 }

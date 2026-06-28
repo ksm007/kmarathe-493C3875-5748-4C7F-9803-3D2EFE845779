@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
 import {
   Alert,
+  Badge,
   Box,
   Button,
   Center,
   Group,
   Loader,
   Paper,
+  RingProgress,
   SegmentedControl,
   Select,
   SimpleGrid,
@@ -20,6 +22,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Outlet, createFileRoute, useNavigate } from '@tanstack/react-router';
 import type {
   CreateTaskRequest,
+  Sprint,
   Task,
   TaskQuery,
   UpdateTaskRequest,
@@ -28,6 +31,7 @@ import {
   IssueType,
   SprintState,
   TaskCategory,
+  TaskPriority,
   TaskStatus,
 } from '@nx-temp/data';
 import { Plus, Search } from 'lucide-react';
@@ -50,7 +54,7 @@ import {
 } from '~/features/tasks/task-form-modal';
 import type { TaskFormState } from '~/features/tasks/task-form-modal';
 
-type ViewMode = 'board' | 'list';
+type ViewMode = 'board' | 'list' | 'analytics';
 
 const defaultTaskFilters: TaskQuery = { sortBy: 'position', order: 'asc' };
 
@@ -77,6 +81,10 @@ function TasksRoute() {
     queryKey: ['tasks', filters],
     queryFn: () => apiClient.listTasks(filters),
   });
+  const sprintsQuery = useQuery({
+    queryKey: ['sprints-all'],
+    queryFn: () => apiClient.listSprints(),
+  });
   const taskFormOptionsQuery = useQuery({
     queryKey: ['task-form-options', user.organizationId],
     queryFn: async () => {
@@ -92,6 +100,7 @@ function TasksRoute() {
   });
 
   const tasks = tasksQuery.data ?? [];
+  const sprints = sprintsQuery.data ?? [];
   const taskFormOptions = taskFormOptionsQuery.data;
   const assignableUsers = taskFormOptions?.users ?? [];
   const assignableSprints =
@@ -279,6 +288,7 @@ function TasksRoute() {
               data={[
                 { label: 'Board', value: 'board' },
                 { label: 'List', value: 'list' },
+                { label: 'Analytics', value: 'analytics' },
               ]}
             />
             <Button leftSection={<Plus size={16} />} onClick={openCreateTask}>
@@ -288,7 +298,7 @@ function TasksRoute() {
         </Group>
 
         <Paper withBorder radius="md" p="md">
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
             <TextInput
               label="Search"
               placeholder="Title, description, tag"
@@ -335,6 +345,25 @@ function TasksRoute() {
               }
             />
             <Select
+              label="Sprint"
+              placeholder="All sprints"
+              clearable
+              data={[
+                { value: 'backlog', label: 'Backlog (no sprint)' },
+                ...sprints.map((s: Sprint) => ({
+                  value: s.id,
+                  label: s.name,
+                })),
+              ]}
+              value={filters.sprintId ?? null}
+              onChange={(value) =>
+                setFilters((current) => ({
+                  ...current,
+                  sprintId: value ?? undefined,
+                }))
+              }
+            />
+            <Select
               label="Sort"
               data={[
                 { value: 'position', label: 'Board order' },
@@ -361,6 +390,8 @@ function TasksRoute() {
           <Center py="xl">
             <Loader />
           </Center>
+        ) : viewMode === 'analytics' ? (
+          <TaskAnalyticsView tasks={tasks} />
         ) : viewMode === 'board' ? (
           <Stack gap="sm">
             {!canReorderTasks ? (
@@ -388,5 +419,234 @@ function TasksRoute() {
         )}
       </Stack>
     </>
+  );
+}
+
+const PRIORITY_COLORS: Record<TaskPriority, string> = {
+  [TaskPriority.Low]: 'var(--mantine-color-gray-6)',
+  [TaskPriority.Medium]: 'var(--mantine-color-blue-6)',
+  [TaskPriority.High]: 'var(--mantine-color-red-6)',
+};
+
+const STATUS_COLORS: Record<TaskStatus, string> = {
+  [TaskStatus.Backlog]: 'gray',
+  [TaskStatus.Todo]: 'blue',
+  [TaskStatus.InProgress]: 'yellow',
+  [TaskStatus.InReview]: 'violet',
+  [TaskStatus.Done]: 'green',
+};
+
+function StatCard({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number;
+  color: string;
+}) {
+  return (
+    <Paper withBorder radius="md" p="lg">
+      <Stack gap={4}>
+        <Text size="xs" fw={600} tt="uppercase" c="dimmed">
+          {label}
+        </Text>
+        <Text size="2rem" fw={800} c={color}>
+          {value}
+        </Text>
+      </Stack>
+    </Paper>
+  );
+}
+
+function PriorityBar({
+  label,
+  count,
+  max,
+  color,
+}: {
+  label: string;
+  count: number;
+  max: number;
+  color: string;
+}) {
+  const pct = max === 0 ? 0 : Math.round((count / max) * 100);
+  return (
+    <Group gap="sm" wrap="nowrap" align="center">
+      <Text size="sm" w={60} style={{ flexShrink: 0 }}>
+        {label}
+      </Text>
+      <Box
+        style={{
+          flex: 1,
+          background: 'var(--mantine-color-gray-1)',
+          borderRadius: 4,
+          height: 20,
+          overflow: 'hidden',
+        }}
+      >
+        <Box
+          style={{
+            width: `${pct}%`,
+            height: '100%',
+            background: color,
+            borderRadius: 4,
+            transition: 'width 0.3s ease',
+          }}
+        />
+      </Box>
+      <Badge variant="light" size="sm" style={{ flexShrink: 0, minWidth: 32 }}>
+        {count}
+      </Badge>
+    </Group>
+  );
+}
+
+function TaskAnalyticsView({ tasks }: { tasks: Task[] }) {
+  const total = tasks.length;
+  const done = tasks.filter((t) => t.status === TaskStatus.Done).length;
+  const active = tasks.filter(
+    (t) => t.status !== TaskStatus.Done && t.status !== TaskStatus.Backlog,
+  ).length;
+  const backlog = tasks.filter((t) => t.status === TaskStatus.Backlog).length;
+  const donePercent = total === 0 ? 0 : Math.round((done / total) * 100);
+
+  const byPriority = [
+    {
+      label: 'High',
+      count: tasks.filter((t) => t.priority === TaskPriority.High).length,
+      color: PRIORITY_COLORS[TaskPriority.High],
+    },
+    {
+      label: 'Medium',
+      count: tasks.filter((t) => t.priority === TaskPriority.Medium).length,
+      color: PRIORITY_COLORS[TaskPriority.Medium],
+    },
+    {
+      label: 'Low',
+      count: tasks.filter((t) => t.priority === TaskPriority.Low).length,
+      color: PRIORITY_COLORS[TaskPriority.Low],
+    },
+  ];
+  const maxPriorityCount = Math.max(...byPriority.map((p) => p.count), 1);
+
+  const byStatus = statusColumns.map((col) => ({
+    label: col.label,
+    count: tasks.filter((t) => t.status === col.status).length,
+    color: STATUS_COLORS[col.status],
+  }));
+  const maxStatusCount = Math.max(...byStatus.map((s) => s.count), 1);
+
+  const byCategory = [
+    {
+      label: 'Work',
+      count: tasks.filter((t) => t.category === TaskCategory.Work).length,
+    },
+    {
+      label: 'Personal',
+      count: tasks.filter((t) => t.category === TaskCategory.Personal).length,
+    },
+    {
+      label: 'Ops',
+      count: tasks.filter((t) => t.category === TaskCategory.Ops).length,
+    },
+  ];
+
+  return (
+    <Stack gap="lg">
+      <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
+        <StatCard label="Total tasks" value={total} color="dark" />
+        <StatCard label="Active" value={active} color="yellow" />
+        <StatCard label="Done" value={done} color="green" />
+        <StatCard label="Backlog" value={backlog} color="gray" />
+      </SimpleGrid>
+
+      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
+        <Paper withBorder radius="md" p="lg">
+          <Stack gap="md">
+            <Text fw={700}>Completion</Text>
+            <Center>
+              <RingProgress
+                size={120}
+                thickness={14}
+                sections={[{ value: donePercent, color: 'green' }]}
+                label={
+                  <Center>
+                    <Stack gap={0} align="center">
+                      <Text fw={800} size="lg">
+                        {donePercent}%
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        done
+                      </Text>
+                    </Stack>
+                  </Center>
+                }
+              />
+            </Center>
+          </Stack>
+        </Paper>
+
+        <Paper withBorder radius="md" p="lg">
+          <Stack gap="md">
+            <Text fw={700}>By Priority</Text>
+            <Stack gap="sm">
+              {byPriority.map((p) => (
+                <PriorityBar
+                  key={p.label}
+                  label={p.label}
+                  count={p.count}
+                  max={maxPriorityCount}
+                  color={p.color}
+                />
+              ))}
+            </Stack>
+          </Stack>
+        </Paper>
+
+        <Paper withBorder radius="md" p="lg">
+          <Stack gap="md">
+            <Text fw={700}>By Status</Text>
+            <Stack gap="sm">
+              {byStatus.map((s) => (
+                <PriorityBar
+                  key={s.label}
+                  label={s.label}
+                  count={s.count}
+                  max={maxStatusCount}
+                  color={`var(--mantine-color-${s.color}-6)`}
+                />
+              ))}
+            </Stack>
+          </Stack>
+        </Paper>
+      </SimpleGrid>
+
+      <Paper withBorder radius="md" p="lg">
+        <Stack gap="md">
+          <Text fw={700}>By Category</Text>
+          <Group gap="md">
+            {byCategory.map((c) => (
+              <Paper
+                key={c.label}
+                withBorder
+                radius="md"
+                p="md"
+                style={{ flex: 1, minWidth: 100 }}
+              >
+                <Stack gap={4} align="center">
+                  <Text size="sm" c="dimmed">
+                    {c.label}
+                  </Text>
+                  <Text fw={800} size="xl">
+                    {c.count}
+                  </Text>
+                </Stack>
+              </Paper>
+            ))}
+          </Group>
+        </Stack>
+      </Paper>
+    </Stack>
   );
 }
