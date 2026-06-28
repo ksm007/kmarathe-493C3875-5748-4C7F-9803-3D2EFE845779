@@ -2,13 +2,26 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException, ForbiddenException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { newDb } from 'pg-mem';
 import { DataSource, Repository } from 'typeorm';
-import { Role, SprintState, TaskCategory, TaskPriority, TaskStatus } from '@nx-temp/data';
+import {
+  Role,
+  SprintState,
+  TaskCategory,
+  TaskPriority,
+  TaskStatus,
+} from '@nx-temp/data';
 import { AiService } from './ai/ai.service';
 import { AuditService } from './audit/audit.service';
 import { AuthService } from './auth/auth.service';
+import { GoogleVerifierService } from './auth/google-verifier.service';
 import { LoginAttemptService } from './auth/login-attempt.service';
 import { ChatRateLimiterService } from './chat/chat-rate-limiter.service';
 import { ChatService } from './chat/chat.service';
@@ -63,8 +76,14 @@ describe('API integration', () => {
 
   beforeEach(async () => {
     const db = newDb({ autoCreateForeignKeyIndices: true });
-    db.public.registerFunction({ implementation: () => 'pg-mem', name: 'current_database' });
-    db.public.registerFunction({ implementation: () => 'PostgreSQL 16.0', name: 'version' });
+    db.public.registerFunction({
+      implementation: () => 'pg-mem',
+      name: 'current_database',
+    });
+    db.public.registerFunction({
+      implementation: () => 'PostgreSQL 16.0',
+      name: 'version',
+    });
 
     dataSource = await db.adapters.createTypeormDataSource({
       type: 'postgres',
@@ -92,7 +111,9 @@ describe('API integration', () => {
     usersRepository = dataSource.getRepository(UserEntity);
     membershipsRepository = dataSource.getRepository(MembershipEntity);
     invitationsRepository = dataSource.getRepository(InvitationEntity);
-    passwordResetTokensRepository = dataSource.getRepository(PasswordResetTokenEntity);
+    passwordResetTokensRepository = dataSource.getRepository(
+      PasswordResetTokenEntity,
+    );
     sprintsRepository = dataSource.getRepository(SprintEntity);
     tasksRepository = dataSource.getRepository(TaskEntity);
     auditRepository = dataSource.getRepository(AuditLogEntity);
@@ -101,7 +122,9 @@ describe('API integration', () => {
     taskEmbeddingsRepository = dataSource.getRepository(TaskEmbeddingEntity);
     llmInteractionsRepository = dataSource.getRepository(LlmInteractionEntity);
     chatMessagesRepository = dataSource.getRepository(ChatMessageEntity);
-    chatPendingActionsRepository = dataSource.getRepository(ChatPendingActionEntity);
+    chatPendingActionsRepository = dataSource.getRepository(
+      ChatPendingActionEntity,
+    );
 
     organizationsService = new OrganizationsService(organizationsRepository);
     auditService = new AuditService(auditRepository);
@@ -112,7 +135,11 @@ describe('API integration', () => {
     });
 
     const emailService = new EmailService(
-      new ConfigService({ RESEND_API_KEY: '', APP_URL: 'http://localhost:3000', FROM_EMAIL: 'noreply@test.com' })
+      new ConfigService({
+        RESEND_API_KEY: '',
+        APP_URL: 'http://localhost:3000',
+        FROM_EMAIL: 'noreply@test.com',
+      }),
     );
 
     aiService = new AiService(
@@ -121,14 +148,24 @@ describe('API integration', () => {
       taskEmbeddingsRepository,
       llmInteractionsRepository,
       organizationsService,
-      configService
+      configService,
     );
 
     loginAttemptService = new LoginAttemptService(
-      new ConfigService({ LOGIN_MAX_FAILED_ATTEMPTS: 5, LOGIN_LOCKOUT_SECONDS: 900 })
+      new ConfigService({
+        LOGIN_MAX_FAILED_ATTEMPTS: 5,
+        LOGIN_LOCKOUT_SECONDS: 900,
+      }),
     );
+    const googleVerifier = {
+      verifyIdToken: jest.fn(),
+    } as unknown as GoogleVerifierService;
+
     authService = new AuthService(
-      new JwtService({ secret: 'test-secret', signOptions: { expiresIn: '1h' as never } }),
+      new JwtService({
+        secret: 'test-secret',
+        signOptions: { expiresIn: '1h' as never },
+      }),
       new ConfigService({ JWT_SECRET: 'test-secret', JWT_EXPIRES_IN: '1h' }),
       emailService,
       usersRepository,
@@ -136,9 +173,14 @@ describe('API integration', () => {
       membershipsRepository,
       invitationsRepository,
       passwordResetTokensRepository,
-      loginAttemptService
+      loginAttemptService,
+      googleVerifier,
     );
-    invitationsService = new InvitationsService(authService, emailService, invitationsRepository);
+    invitationsService = new InvitationsService(
+      authService,
+      emailService,
+      invitationsRepository,
+    );
 
     new UsersService(usersRepository, membershipsRepository);
 
@@ -153,7 +195,11 @@ describe('API integration', () => {
       organizationsService,
       auditService,
       aiService,
-      new AttachmentStorageService(new ConfigService({ ATTACHMENT_STORAGE_DIR: '/tmp/turbo-vets-test-attachments' }))
+      new AttachmentStorageService(
+        new ConfigService({
+          ATTACHMENT_STORAGE_DIR: '/tmp/turbo-vets-test-attachments',
+        }),
+      ),
     );
     chatService = new ChatService(
       chatMessagesRepository,
@@ -161,7 +207,7 @@ describe('API integration', () => {
       aiService,
       auditService,
       tasksService,
-      new ChatRateLimiterService(configService)
+      new ChatRateLimiterService(configService),
     );
   });
 
@@ -174,13 +220,16 @@ describe('API integration', () => {
   it('authenticates seeded credentials and rejects invalid passwords', async () => {
     const { ownerAuthUser } = await seedHierarchy();
 
-    const success = await authService.login(ownerAuthUser.email, 'Password123!');
+    const success = await authService.login(
+      ownerAuthUser.email,
+      'Password123!',
+    );
     expect(success.user.role).toBe(Role.Owner);
     expect(success.accessToken).toEqual(expect.any(String));
 
-    await expect(authService.login(ownerAuthUser.email, 'wrong-pass')).rejects.toBeInstanceOf(
-      UnauthorizedException
-    );
+    await expect(
+      authService.login(ownerAuthUser.email, 'wrong-pass'),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('locks an account out after repeated failed logins and rejects even correct credentials', async () => {
@@ -188,18 +237,20 @@ describe('API integration', () => {
 
     // Five wrong passwords reach the LOGIN_MAX_FAILED_ATTEMPTS threshold.
     for (let attempt = 0; attempt < 5; attempt++) {
-      await expect(authService.login(ownerAuthUser.email, 'wrong-pass')).rejects.toBeInstanceOf(
-        UnauthorizedException
-      );
+      await expect(
+        authService.login(ownerAuthUser.email, 'wrong-pass'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
     }
 
     // The account is now locked: even the correct password is refused with 429.
-    await expect(authService.login(ownerAuthUser.email, 'Password123!')).rejects.toMatchObject({
+    await expect(
+      authService.login(ownerAuthUser.email, 'Password123!'),
+    ).rejects.toMatchObject({
       status: HttpStatus.TOO_MANY_REQUESTS,
     });
-    await expect(authService.login(ownerAuthUser.email, 'Password123!')).rejects.toBeInstanceOf(
-      HttpException
-    );
+    await expect(
+      authService.login(ownerAuthUser.email, 'Password123!'),
+    ).rejects.toBeInstanceOf(HttpException);
   });
 
   it('resets the failed-login counter after a successful login', async () => {
@@ -207,23 +258,27 @@ describe('API integration', () => {
 
     // Four failures stay below the threshold of five.
     for (let attempt = 0; attempt < 4; attempt++) {
-      await expect(authService.login(ownerAuthUser.email, 'wrong-pass')).rejects.toBeInstanceOf(
-        UnauthorizedException
-      );
+      await expect(
+        authService.login(ownerAuthUser.email, 'wrong-pass'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
     }
 
     // A success clears the counter, so the account never locks out.
-    await expect(authService.login(ownerAuthUser.email, 'Password123!')).resolves.toEqual(
-      expect.objectContaining({ accessToken: expect.any(String) })
+    await expect(
+      authService.login(ownerAuthUser.email, 'Password123!'),
+    ).resolves.toEqual(
+      expect.objectContaining({ accessToken: expect.any(String) }),
     );
 
     for (let attempt = 0; attempt < 4; attempt++) {
-      await expect(authService.login(ownerAuthUser.email, 'wrong-pass')).rejects.toBeInstanceOf(
-        UnauthorizedException
-      );
+      await expect(
+        authService.login(ownerAuthUser.email, 'wrong-pass'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
     }
-    await expect(authService.login(ownerAuthUser.email, 'Password123!')).resolves.toEqual(
-      expect.objectContaining({ accessToken: expect.any(String) })
+    await expect(
+      authService.login(ownerAuthUser.email, 'Password123!'),
+    ).resolves.toEqual(
+      expect.objectContaining({ accessToken: expect.any(String) }),
     );
   });
 
@@ -233,21 +288,27 @@ describe('API integration', () => {
       ownerAuthUser.organizationId,
       'new-viewer@acme.test',
       Role.Viewer,
-      ownerAuthUser.id
+      ownerAuthUser.id,
     );
 
-    const response = await authService.acceptInvitation(token, 'New Viewer', 'Password123!');
+    const response = await authService.acceptInvitation(
+      token,
+      'New Viewer',
+      'Password123!',
+    );
 
     expect(response.user.email).toBe('new-viewer@acme.test');
     expect(response.user.role).toBe(Role.Viewer);
     await expect(
-      authService.acceptInvitation(token, 'New Viewer', 'Password123!')
+      authService.acceptInvitation(token, 'New Viewer', 'Password123!'),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('invalidates all active reset tokens after password reset', async () => {
     const { ownerAuthUser } = await seedHierarchy();
-    const owner = await usersRepository.findOneByOrFail({ id: ownerAuthUser.id });
+    const owner = await usersRepository.findOneByOrFail({
+      id: ownerAuthUser.id,
+    });
     const firstToken = 'first-reset-token';
     const secondToken = 'second-reset-token';
 
@@ -268,30 +329,43 @@ describe('API integration', () => {
 
     await authService.resetPassword(firstToken, 'NewPassword123!');
 
-    await expect(authService.login(owner.email, 'NewPassword123!')).resolves.toEqual(
-      expect.objectContaining({ accessToken: expect.any(String) })
+    await expect(
+      authService.login(owner.email, 'NewPassword123!'),
+    ).resolves.toEqual(
+      expect.objectContaining({ accessToken: expect.any(String) }),
     );
-    await expect(authService.resetPassword(secondToken, 'OtherPassword123!')).rejects.toBeInstanceOf(
-      BadRequestException
-    );
+    await expect(
+      authService.resetPassword(secondToken, 'OtherPassword123!'),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('blocks admins from inviting owners', async () => {
     const { adminAuthUser } = await seedHierarchy();
 
     await expect(
-      invitationsService.create(adminAuthUser, 'owner-two@acme.test', Role.Owner)
+      invitationsService.create(
+        adminAuthUser,
+        'owner-two@acme.test',
+        Role.Owner,
+      ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('lets an owner see parent and child organization tasks', async () => {
     const { ownerAuthUser, childOrganization } = await seedHierarchy();
 
-    await createTask(ownerAuthUser.id, ownerAuthUser.organizationId, 'Parent task');
+    await createTask(
+      ownerAuthUser.id,
+      ownerAuthUser.organizationId,
+      'Parent task',
+    );
     await createTask(ownerAuthUser.id, childOrganization.id, 'Child task');
 
     const tasks = await tasksService.listTasks(ownerAuthUser, {});
-    expect(tasks.map((task) => task.title).sort()).toEqual(['Child task', 'Parent task']);
+    expect(tasks.map((task) => task.title).sort()).toEqual([
+      'Child task',
+      'Parent task',
+    ]);
   });
 
   it('filters tasks by sprint and backlog assignment', async () => {
@@ -305,7 +379,7 @@ describe('API integration', () => {
         organizationId: ownerAuthUser.organizationId,
         startDate: null,
         state: SprintState.Active,
-      })
+      }),
     );
 
     await tasksService.createTask(ownerAuthUser, {
@@ -320,8 +394,12 @@ describe('API integration', () => {
       priority: TaskPriority.Medium,
     });
 
-    const sprintTasks = await tasksService.listTasks(ownerAuthUser, { sprintId: sprint.id });
-    const backlogTasks = await tasksService.listTasks(ownerAuthUser, { sprintId: 'backlog' });
+    const sprintTasks = await tasksService.listTasks(ownerAuthUser, {
+      sprintId: sprint.id,
+    });
+    const backlogTasks = await tasksService.listTasks(ownerAuthUser, {
+      sprintId: 'backlog',
+    });
 
     expect(sprintTasks.map((task) => task.title)).toEqual(['Sprint task']);
     expect(backlogTasks.map((task) => task.title)).toEqual(['Backlog task']);
@@ -332,12 +410,12 @@ describe('API integration', () => {
     const firstTask = await createTask(
       ownerAuthUser.id,
       ownerAuthUser.organizationId,
-      'First reorder task'
+      'First reorder task',
     );
     const secondTask = await createTask(
       ownerAuthUser.id,
       ownerAuthUser.organizationId,
-      'Second reorder task'
+      'Second reorder task',
     );
     const syncSpy = jest.spyOn(aiService, 'syncTaskEmbedding');
 
@@ -354,9 +432,9 @@ describe('API integration', () => {
       firstTask.id,
     ]);
     expect(reorderedTasks.map((task) => task.position)).toEqual([0, 1]);
-    expect(reorderedTasks.find((task) => task.id === firstTask.id)?.status).toBe(
-      TaskStatus.InProgress
-    );
+    expect(
+      reorderedTasks.find((task) => task.id === firstTask.id)?.status,
+    ).toBe(TaskStatus.InProgress);
   });
 
   it('stores image-only task attachments in task detail', async () => {
@@ -367,12 +445,16 @@ describe('API integration', () => {
       priority: TaskPriority.Medium,
     });
 
-    const attachment = await tasksService.addAttachment(ownerAuthUser, task.id, {
-      originalname: 'screen.png',
-      mimetype: 'image/png',
-      size: 8,
-      buffer: Buffer.from('png-data'),
-    });
+    const attachment = await tasksService.addAttachment(
+      ownerAuthUser,
+      task.id,
+      {
+        originalname: 'screen.png',
+        mimetype: 'image/png',
+        size: 8,
+        buffer: Buffer.from('png-data'),
+      },
+    );
     const detail = await tasksService.getTaskDetail(ownerAuthUser, task.id);
 
     expect(attachment.fileName).toBe('screen.png');
@@ -399,7 +481,7 @@ describe('API integration', () => {
         mimetype: 'application/pdf',
         size: 8,
         buffer: Buffer.from('pdf-data'),
-      })
+      }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -415,7 +497,7 @@ describe('API integration', () => {
         priority: TaskPriority.Medium,
         status: TaskStatus.Todo,
         title: `Open task ${index}`,
-      })
+      }),
     );
     await tasksRepository.save(openTasks);
 
@@ -424,7 +506,7 @@ describe('API integration', () => {
         title: 'Blocked open task',
         category: TaskCategory.Work,
         priority: TaskPriority.Medium,
-      })
+      }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
     await expect(
@@ -433,7 +515,7 @@ describe('API integration', () => {
         category: TaskCategory.Work,
         priority: TaskPriority.Medium,
         status: TaskStatus.Done,
-      })
+      }),
     ).resolves.toEqual(expect.objectContaining({ status: TaskStatus.Done }));
   });
 
@@ -449,7 +531,7 @@ describe('API integration', () => {
         priority: TaskPriority.Medium,
         status: TaskStatus.Todo,
         title: `Capacity task ${index}`,
-      })
+      }),
     );
     await tasksRepository.save(openTasks);
     const completedTask = await tasksRepository.save(
@@ -462,13 +544,13 @@ describe('API integration', () => {
         priority: TaskPriority.Medium,
         status: TaskStatus.Done,
         title: 'Completed task',
-      })
+      }),
     );
 
     await expect(
       tasksService.updateTask(ownerAuthUser, completedTask.id, {
         status: TaskStatus.Todo,
-      })
+      }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -481,7 +563,7 @@ describe('API integration', () => {
         category: TaskCategory.Work,
         priority: TaskPriority.High,
         organizationId: childOrganization.id,
-      })
+      }),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
@@ -495,17 +577,25 @@ describe('API integration', () => {
     });
 
     await expect(
-      tasksService.updateTask(viewerAuthUser, task.id, { title: 'Edited title' })
+      tasksService.updateTask(viewerAuthUser, task.id, {
+        title: 'Edited title',
+      }),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     const auditEntries = await auditService.list(20);
-    expect(auditEntries.some((entry) => entry.reason === 'viewer_read_only')).toBe(true);
+    expect(
+      auditEntries.some((entry) => entry.reason === 'viewer_read_only'),
+    ).toBe(true);
   });
 
   it('limits viewer reads to created or assigned tasks within the org', async () => {
     const { viewerAuthUser, ownerAuthUser } = await seedHierarchy();
 
-    await createTask(ownerAuthUser.id, ownerAuthUser.organizationId, 'Invisible task');
+    await createTask(
+      ownerAuthUser.id,
+      ownerAuthUser.organizationId,
+      'Invisible task',
+    );
     await tasksService.createTask(ownerAuthUser, {
       title: 'Assigned task',
       category: TaskCategory.Work,
@@ -522,7 +612,7 @@ describe('API integration', () => {
 
     const askResult = await chatService.ask(
       ownerAuthUser,
-      'Create task to review auth logs tomorrow #security'
+      'Create task to review auth logs tomorrow #security',
     );
 
     expect(askResult.pendingAction?.status).toBe('pending');
@@ -530,12 +620,14 @@ describe('API integration', () => {
 
     const confirmation = await chatService.confirmPendingAction(
       ownerAuthUser,
-      askResult.pendingAction!.id
+      askResult.pendingAction!.id,
     );
 
     expect(confirmation.pendingAction.status).toBe('confirmed');
     const tasks = await tasksService.listTasks(ownerAuthUser, {});
-    expect(tasks.some((task) => task.title.includes('review auth logs'))).toBe(true);
+    expect(tasks.some((task) => task.title.includes('review auth logs'))).toBe(
+      true,
+    );
   });
 
   it('respects requested in-progress status on chat-created tasks', async () => {
@@ -543,13 +635,18 @@ describe('API integration', () => {
 
     const askResult = await chatService.ask(
       ownerAuthUser,
-      'Create a task to write unit tests for the user module and add it to in progress'
+      'Create a task to write unit tests for the user module and add it to in progress',
     );
 
-    await chatService.confirmPendingAction(ownerAuthUser, askResult.pendingAction!.id);
+    await chatService.confirmPendingAction(
+      ownerAuthUser,
+      askResult.pendingAction!.id,
+    );
 
     const tasks = await tasksService.listTasks(ownerAuthUser, {});
-    const createdTask = tasks.find((task) => task.title === 'write unit tests for the user module');
+    const createdTask = tasks.find(
+      (task) => task.title === 'write unit tests for the user module',
+    );
     expect(createdTask?.status).toBe(TaskStatus.InProgress);
   });
 
@@ -557,11 +654,15 @@ describe('API integration', () => {
     const { ownerAuthUser } = await seedHierarchy();
     await seedLlmInteractions(ownerAuthUser.id, 3, new Date());
 
-    await expect(chatService.ask(ownerAuthUser, 'Which tasks need attention?')).rejects.toMatchObject({
+    await expect(
+      chatService.ask(ownerAuthUser, 'Which tasks need attention?'),
+    ).rejects.toMatchObject({
       status: HttpStatus.TOO_MANY_REQUESTS,
     });
 
-    await expect(llmInteractionsRepository.countBy({ userId: ownerAuthUser.id })).resolves.toBe(3);
+    await expect(
+      llmInteractionsRepository.countBy({ userId: ownerAuthUser.id }),
+    ).resolves.toBe(3);
   });
 
   it('does not count previous-day AI calls against today', async () => {
@@ -570,18 +671,27 @@ describe('API integration', () => {
     yesterday.setUTCDate(yesterday.getUTCDate() - 1);
     await seedLlmInteractions(ownerAuthUser.id, 3, yesterday);
 
-    await expect(chatService.ask(ownerAuthUser, 'Which tasks need attention?')).resolves.toEqual(
+    await expect(
+      chatService.ask(ownerAuthUser, 'Which tasks need attention?'),
+    ).resolves.toEqual(
       expect.objectContaining({
         pendingAction: null,
-      })
+      }),
     );
 
-    await expect(llmInteractionsRepository.countBy({ userId: ownerAuthUser.id })).resolves.toBe(4);
+    await expect(
+      llmInteractionsRepository.countBy({ userId: ownerAuthUser.id }),
+    ).resolves.toBe(4);
   });
 
   async function seedHierarchy() {
     const parentOrganization = await organizationsRepository.save(
-      organizationsRepository.create({ level: 1, name: 'Acme HQ', parentOrganizationId: null, slug: 'acme-hq' })
+      organizationsRepository.create({
+        level: 1,
+        name: 'Acme HQ',
+        parentOrganizationId: null,
+        slug: 'acme-hq',
+      }),
     );
     const childOrganization = await organizationsRepository.save(
       organizationsRepository.create({
@@ -589,20 +699,47 @@ describe('API integration', () => {
         name: 'Acme Field Ops',
         parentOrganizationId: parentOrganization.id,
         slug: 'acme-field-ops',
-      })
+      }),
     );
 
     const passwordHash = await bcrypt.hash('Password123!', 10);
     const [ownerUser, adminUser, viewerUser] = await usersRepository.save([
-      usersRepository.create({ email: 'owner@acme.test', fullName: 'Olivia Owner', passwordHash, googleId: null }),
-      usersRepository.create({ email: 'admin@acme.test', fullName: 'Andy Admin', passwordHash, googleId: null }),
-      usersRepository.create({ email: 'viewer@acme.test', fullName: 'Vera Viewer', passwordHash, googleId: null }),
+      usersRepository.create({
+        email: 'owner@acme.test',
+        fullName: 'Olivia Owner',
+        passwordHash,
+        googleId: null,
+      }),
+      usersRepository.create({
+        email: 'admin@acme.test',
+        fullName: 'Andy Admin',
+        passwordHash,
+        googleId: null,
+      }),
+      usersRepository.create({
+        email: 'viewer@acme.test',
+        fullName: 'Vera Viewer',
+        passwordHash,
+        googleId: null,
+      }),
     ]);
 
     await membershipsRepository.save([
-      membershipsRepository.create({ userId: ownerUser.id, organizationId: parentOrganization.id, role: Role.Owner }),
-      membershipsRepository.create({ userId: adminUser.id, organizationId: parentOrganization.id, role: Role.Admin }),
-      membershipsRepository.create({ userId: viewerUser.id, organizationId: parentOrganization.id, role: Role.Viewer }),
+      membershipsRepository.create({
+        userId: ownerUser.id,
+        organizationId: parentOrganization.id,
+        role: Role.Owner,
+      }),
+      membershipsRepository.create({
+        userId: adminUser.id,
+        organizationId: parentOrganization.id,
+        role: Role.Admin,
+      }),
+      membershipsRepository.create({
+        userId: viewerUser.id,
+        organizationId: parentOrganization.id,
+        role: Role.Viewer,
+      }),
     ]);
 
     const toAuth = (user: UserEntity, role: Role, org: OrganizationEntity) => ({
@@ -612,7 +749,9 @@ describe('API integration', () => {
       role,
       organizationId: org.id,
       organizationName: org.name,
-      memberships: [{ organizationId: org.id, organizationName: org.name, role }],
+      memberships: [
+        { organizationId: org.id, organizationName: org.name, role },
+      ],
     });
 
     return {
@@ -623,7 +762,11 @@ describe('API integration', () => {
     } as const;
   }
 
-  async function createTask(createdById: string, organizationId: string, title: string) {
+  async function createTask(
+    createdById: string,
+    organizationId: string,
+    title: string,
+  ) {
     return tasksRepository.save(
       tasksRepository.create({
         category: TaskCategory.Work,
@@ -634,7 +777,7 @@ describe('API integration', () => {
         priority: TaskPriority.Medium,
         status: TaskStatus.Todo,
         title,
-      })
+      }),
     );
   }
 
@@ -642,7 +785,11 @@ describe('API integration', () => {
     return crypto.createHash('sha256').update(raw).digest('hex');
   }
 
-  async function seedLlmInteractions(userId: string, count: number, createdAt: Date) {
+  async function seedLlmInteractions(
+    userId: string,
+    count: number,
+    createdAt: Date,
+  ) {
     const entries = Array.from({ length: count }, (_, index) =>
       llmInteractionsRepository.create({
         userId,
@@ -656,7 +803,7 @@ describe('API integration', () => {
         metadata: null,
         createdAt,
         updatedAt: createdAt,
-      })
+      }),
     );
 
     await llmInteractionsRepository.save(entries);

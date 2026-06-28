@@ -16,3 +16,22 @@ export interface RegisterRequest {
   password: string;
   organizationName: string;
 }
+
+export interface GoogleSignInRequest {
+  idToken: string;
+}
+
+export interface GoogleAuthSession {
+  kind: 'session';
+  accessToken: string;
+  user: CurrentUser;
+}
+
+export interface GoogleAuthNeedsOrg {
+  kind: 'needs-org';
+  email: string;
+  fullName: string;
+  hasPendingInvitations: boolean;
+}
+
+export type GoogleAuthResponse = GoogleAuthSession | GoogleAuthNeedsOrg;

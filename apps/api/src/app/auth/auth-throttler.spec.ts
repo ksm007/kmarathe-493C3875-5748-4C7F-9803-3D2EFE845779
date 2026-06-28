@@ -17,11 +17,22 @@ describe('Auth/invite rate limiting (HTTP)', () => {
   let app: INestApplication;
 
   const authServiceMock = {
-    login: jest.fn().mockResolvedValue({ accessToken: 'token', user: { id: 'u1' } }),
-    register: jest.fn().mockResolvedValue({ accessToken: 'token', user: { id: 'u1' } }),
+    login: jest
+      .fn()
+      .mockResolvedValue({ accessToken: 'token', user: { id: 'u1' } }),
+    register: jest
+      .fn()
+      .mockResolvedValue({ accessToken: 'token', user: { id: 'u1' } }),
+    googleSignIn: jest.fn().mockResolvedValue({
+      kind: 'session',
+      accessToken: 'token',
+      user: { id: 'u1' },
+    }),
     forgotPassword: jest.fn().mockResolvedValue(undefined),
     resetPassword: jest.fn().mockResolvedValue(undefined),
-    acceptInvitation: jest.fn().mockResolvedValue({ accessToken: 'token', user: { id: 'u1' } }),
+    acceptInvitation: jest
+      .fn()
+      .mockResolvedValue({ accessToken: 'token', user: { id: 'u1' } }),
   };
   const invitationsServiceMock = {
     create: jest.fn().mockResolvedValue(undefined),
@@ -53,7 +64,12 @@ describe('Auth/invite rate limiting (HTTP)', () => {
     await app.close();
   });
 
-  async function flood(path: string, body: object, okStatus: number, limit: number) {
+  async function flood(
+    path: string,
+    body: object,
+    okStatus: number,
+    limit: number,
+  ) {
     for (let i = 0; i < limit; i++) {
       await request(app.getHttpServer()).post(path).send(body).expect(okStatus);
     }
@@ -61,22 +77,47 @@ describe('Auth/invite rate limiting (HTTP)', () => {
   }
 
   it('returns 429 once POST /auth/login exceeds the per-IP limit', async () => {
-    const blocked = await flood('/auth/login', { email: 'a@b.com', password: 'x' }, 201, AUTH_LIMIT);
+    const blocked = await flood(
+      '/auth/login',
+      { email: 'a@b.com', password: 'x' },
+      201,
+      AUTH_LIMIT,
+    );
     expect(blocked.status).toBe(429);
   });
 
   it('returns 429 once POST /auth/register exceeds the per-IP limit', async () => {
     const blocked = await flood(
       '/auth/register',
-      { email: 'a@b.com', fullName: 'A', password: 'x', organizationName: 'Org' },
+      {
+        email: 'a@b.com',
+        fullName: 'A',
+        password: 'x',
+        organizationName: 'Org',
+      },
       201,
-      AUTH_LIMIT
+      AUTH_LIMIT,
     );
     expect(blocked.status).toBe(429);
   });
 
   it('returns 429 once POST /auth/forgot-password exceeds the per-IP limit', async () => {
-    const blocked = await flood('/auth/forgot-password', { email: 'a@b.com' }, 204, AUTH_LIMIT);
+    const blocked = await flood(
+      '/auth/forgot-password',
+      { email: 'a@b.com' },
+      204,
+      AUTH_LIMIT,
+    );
+    expect(blocked.status).toBe(429);
+  });
+
+  it('returns 429 once POST /auth/google exceeds the per-IP limit', async () => {
+    const blocked = await flood(
+      '/auth/google',
+      { idToken: 'fake.google.token' },
+      201,
+      AUTH_LIMIT,
+    );
     expect(blocked.status).toBe(429);
   });
 
@@ -85,7 +126,7 @@ describe('Auth/invite rate limiting (HTTP)', () => {
       '/invitations/accept',
       { token: 't', fullName: 'A', password: 'x' },
       201,
-      AUTH_LIMIT
+      AUTH_LIMIT,
     );
     expect(blocked.status).toBe(429);
   });
@@ -95,11 +136,19 @@ describe('Auth/invite rate limiting (HTTP)', () => {
 
     // Sails past the tighter 'auth' limit because create skips it...
     for (let i = 0; i < AUTH_LIMIT + 1; i++) {
-      await request(app.getHttpServer()).post('/invitations').send(body).expect(204);
+      await request(app.getHttpServer())
+        .post('/invitations')
+        .send(body)
+        .expect(204);
     }
 
     // ...and only trips 429 once the higher 'invite' limit is exceeded.
-    const blocked = await flood('/invitations', body, 204, INVITE_LIMIT - (AUTH_LIMIT + 1));
+    const blocked = await flood(
+      '/invitations',
+      body,
+      204,
+      INVITE_LIMIT - (AUTH_LIMIT + 1),
+    );
     expect(blocked.status).toBe(429);
   });
 });

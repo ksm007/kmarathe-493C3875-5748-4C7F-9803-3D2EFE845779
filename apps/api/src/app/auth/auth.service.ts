@@ -1,4 +1,4 @@
-import { LoginResponse, Role } from '@nx-temp/data';
+import { GoogleAuthResponse, LoginResponse, Role } from '@nx-temp/data';
 import { AuthenticatedUser } from '@nx-temp/auth';
 import {
   BadRequestException,
@@ -7,6 +7,10 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import {
+  GoogleProfile,
+  GoogleVerifierService,
+} from './google-verifier.service';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -43,7 +47,8 @@ export class AuthService {
     private readonly invitationsRepo: Repository<InvitationEntity>,
     @InjectRepository(PasswordResetTokenEntity)
     private readonly resetTokensRepo: Repository<PasswordResetTokenEntity>,
-    private readonly loginAttempts: LoginAttemptService
+    private readonly loginAttempts: LoginAttemptService,
+    private readonly googleVerifier: GoogleVerifierService,
   ) {}
 
   // ── Login ─────────────────────────────────────────────────────────────────
@@ -79,15 +84,99 @@ export class AuthService {
     }
 
     const activeMembership = user.memberships[0];
-    const accessToken = await this.signToken(user.id, activeMembership.organizationId, activeMembership.role);
+    const accessToken = await this.signToken(
+      user.id,
+      activeMembership.organizationId,
+      activeMembership.role,
+    );
 
     return { accessToken, user: this.toCurrentUser(user, activeMembership) };
   }
 
+  // ── Google sign-in ────────────────────────────────────────────────────────
+
+  async googleSignIn(idToken: string): Promise<GoogleAuthResponse> {
+    const profile = await this.googleVerifier.verifyIdToken(idToken);
+    return this.googleSignInWithProfile(profile);
+  }
+
+  async googleSignInWithProfile(
+    profile: GoogleProfile,
+  ): Promise<GoogleAuthResponse> {
+    // Find user by googleId first, then fall back to email match.
+    let user = await this.usersRepo
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.memberships', 'membership')
+      .leftJoinAndSelect('membership.organization', 'org')
+      .where('user.googleId = :googleId', { googleId: profile.googleId })
+      .getOne();
+
+    if (!user) {
+      user = await this.usersRepo
+        .createQueryBuilder('user')
+        .leftJoinAndSelect('user.memberships', 'membership')
+        .leftJoinAndSelect('membership.organization', 'org')
+        .where('LOWER(user.email) = LOWER(:email)', { email: profile.email })
+        .getOne();
+    }
+
+    if (user) {
+      // Persist googleId if this is the first Google sign-in for an existing account.
+      if (!user.googleId) {
+        await this.usersRepo.update(user.id, { googleId: profile.googleId });
+        user.googleId = profile.googleId;
+      }
+
+      if (user.memberships.length > 0) {
+        const activeMembership = user.memberships[0];
+        const accessToken = await this.signToken(
+          user.id,
+          activeMembership.organizationId,
+          activeMembership.role,
+        );
+        return {
+          kind: 'session',
+          accessToken,
+          user: this.toCurrentUser(user, activeMembership),
+        };
+      }
+
+      // User exists but has no org - per ADR 0005 do not silently create one.
+      const hasPendingInvitations = await this.hasPendingInvitations(
+        user.email,
+      );
+      return {
+        kind: 'needs-org',
+        email: user.email,
+        fullName: user.fullName,
+        hasPendingInvitations,
+      };
+    }
+
+    // Brand-new Google identity with no account in the system.
+    // Per ADR 0005: no silent org creation - route to explicit signup or invitation acceptance.
+    const hasPendingInvitations = await this.hasPendingInvitations(
+      profile.email,
+    );
+    return {
+      kind: 'needs-org',
+      email: profile.email,
+      fullName: profile.fullName,
+      hasPendingInvitations,
+    };
+  }
+
   // ── Register ──────────────────────────────────────────────────────────────
 
-  async register(email: string, fullName: string, password: string, organizationName: string): Promise<LoginResponse> {
-    const existing = await this.usersRepo.findOne({ where: { email: email.toLowerCase() } });
+  async register(
+    email: string,
+    fullName: string,
+    password: string,
+    organizationName: string,
+  ): Promise<LoginResponse> {
+    const existing = await this.usersRepo.findOne({
+      where: { email: email.toLowerCase() },
+    });
     if (existing) {
       throw new ConflictException('An account with this email already exists');
     }
@@ -95,20 +184,36 @@ export class AuthService {
     const slug = this.toSlug(organizationName);
     const slugExists = await this.orgsRepo.findOne({ where: { slug } });
     if (slugExists) {
-      throw new ConflictException('An organization with a similar name already exists');
+      throw new ConflictException(
+        'An organization with a similar name already exists',
+      );
     }
 
     const org = await this.orgsRepo.save(
-      this.orgsRepo.create({ name: organizationName, slug, parentOrganizationId: null, level: 1 })
+      this.orgsRepo.create({
+        name: organizationName,
+        slug,
+        parentOrganizationId: null,
+        level: 1,
+      }),
     );
 
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await this.usersRepo.save(
-      this.usersRepo.create({ email: email.toLowerCase(), fullName, passwordHash, googleId: null })
+      this.usersRepo.create({
+        email: email.toLowerCase(),
+        fullName,
+        passwordHash,
+        googleId: null,
+      }),
     );
 
     const membership = await this.membershipsRepo.save(
-      this.membershipsRepo.create({ userId: user.id, organizationId: org.id, role: Role.Owner })
+      this.membershipsRepo.create({
+        userId: user.id,
+        organizationId: org.id,
+        role: Role.Owner,
+      }),
     );
 
     const accessToken = await this.signToken(user.id, org.id, Role.Owner);
@@ -119,7 +224,13 @@ export class AuthService {
       role: Role.Owner,
       organizationId: org.id,
       organizationName: org.name,
-      memberships: [{ organizationId: org.id, organizationName: org.name, role: Role.Owner }],
+      memberships: [
+        {
+          organizationId: org.id,
+          organizationName: org.name,
+          role: Role.Owner,
+        },
+      ],
     };
 
     return { accessToken, user: currentUser };
@@ -144,14 +255,20 @@ export class AuthService {
 
     if (!user) throw new NotFoundException('User not found');
 
-    const accessToken = await this.signToken(userId, targetOrgId, membership.role);
+    const accessToken = await this.signToken(
+      userId,
+      targetOrgId,
+      membership.role,
+    );
     return { accessToken, user: this.toCurrentUser(user, membership) };
   }
 
   // ── Password reset ────────────────────────────────────────────────────────
 
   async forgotPassword(email: string): Promise<void> {
-    const user = await this.usersRepo.findOne({ where: { email: email.toLowerCase() } });
+    const user = await this.usersRepo.findOne({
+      where: { email: email.toLowerCase() },
+    });
     // Silently succeed even if email not found (don't leak user existence)
     if (!user) return;
 
@@ -160,10 +277,17 @@ export class AuthService {
 
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = this.hashToken(rawToken);
-    const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000);
+    const expiresAt = new Date(
+      Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000,
+    );
 
     await this.resetTokensRepo.save(
-      this.resetTokensRepo.create({ userId: user.id, tokenHash, expiresAt, usedAt: null })
+      this.resetTokensRepo.create({
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+        usedAt: null,
+      }),
     );
 
     await this.emailService.sendPasswordReset(user.email, rawToken);
@@ -185,13 +309,18 @@ export class AuthService {
     // Consume every active reset token for this user after a password change.
     await this.resetTokensRepo.update(
       { userId: record.userId, usedAt: IsNull() },
-      { usedAt: new Date() }
+      { usedAt: new Date() },
     );
   }
 
   // ── Invite helpers (called by InvitationsService) ─────────────────────────
 
-  async createInviteToken(organizationId: string, email: string, role: Role, invitedById: string): Promise<string> {
+  async createInviteToken(
+    organizationId: string,
+    email: string,
+    role: Role,
+    invitedById: string,
+  ): Promise<string> {
     const org = await this.orgsRepo.findOne({ where: { id: organizationId } });
     if (!org) throw new NotFoundException('Organization not found');
 
@@ -199,7 +328,11 @@ export class AuthService {
 
     // Cancel any pending invite for the same email+org
     const existing = await this.invitationsRepo.findOne({
-      where: { email: email.toLowerCase(), organizationId, acceptedAt: IsNull() },
+      where: {
+        email: email.toLowerCase(),
+        organizationId,
+        acceptedAt: IsNull(),
+      },
     });
     if (existing) {
       await this.invitationsRepo.remove(existing);
@@ -207,7 +340,9 @@ export class AuthService {
 
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = this.hashToken(rawToken);
-    const expiresAt = new Date(Date.now() + INVITE_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(
+      Date.now() + INVITE_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
+    );
 
     await this.invitationsRepo.save(
       this.invitationsRepo.create({
@@ -218,13 +353,17 @@ export class AuthService {
         tokenHash,
         expiresAt,
         acceptedAt: null,
-      })
+      }),
     );
 
     return rawToken;
   }
 
-  async acceptInvitation(rawToken: string, fullName: string, password: string): Promise<LoginResponse> {
+  async acceptInvitation(
+    rawToken: string,
+    fullName: string,
+    password: string,
+  ): Promise<LoginResponse> {
     const tokenHash = this.hashToken(rawToken);
     const invitation = await this.invitationsRepo.findOne({
       where: { tokenHash, acceptedAt: IsNull() },
@@ -252,7 +391,7 @@ export class AuthService {
             userId: user.id,
             organizationId: invitation.organizationId,
             role: invitation.role,
-          })
+          }),
         );
         // Reload memberships
         user = (await this.usersRepo.findOne({
@@ -264,14 +403,19 @@ export class AuthService {
       // New user: create account + membership
       const passwordHash = await bcrypt.hash(password, 10);
       const saved = await this.usersRepo.save(
-        this.usersRepo.create({ email: invitation.email, fullName, passwordHash, googleId: null })
+        this.usersRepo.create({
+          email: invitation.email,
+          fullName,
+          passwordHash,
+          googleId: null,
+        }),
       );
       await this.membershipsRepo.save(
         this.membershipsRepo.create({
           userId: saved.id,
           organizationId: invitation.organizationId,
           role: invitation.role,
-        })
+        }),
       );
       user = (await this.usersRepo.findOne({
         where: { id: saved.id },
@@ -280,17 +424,28 @@ export class AuthService {
     }
 
     // Mark invitation accepted
-    await this.invitationsRepo.update(invitation.id, { acceptedAt: new Date() });
+    await this.invitationsRepo.update(invitation.id, {
+      acceptedAt: new Date(),
+    });
 
-    const activeMembership = user.memberships.find((m) => m.organizationId === invitation.organizationId)!;
-    const accessToken = await this.signToken(user.id, activeMembership.organizationId, activeMembership.role);
+    const activeMembership = user.memberships.find(
+      (m) => m.organizationId === invitation.organizationId,
+    )!;
+    const accessToken = await this.signToken(
+      user.id,
+      activeMembership.organizationId,
+      activeMembership.role,
+    );
 
     return { accessToken, user: this.toCurrentUser(user, activeMembership) };
   }
 
   // ── JWT validation (called by JwtStrategy) ────────────────────────────────
 
-  async validateJwtUser(userId: string, organizationId: string): Promise<AuthenticatedUser> {
+  async validateJwtUser(
+    userId: string,
+    organizationId: string,
+  ): Promise<AuthenticatedUser> {
     const user = await this.usersRepo.findOne({
       where: { id: userId },
       relations: { memberships: { organization: true } },
@@ -298,8 +453,11 @@ export class AuthService {
 
     if (!user) throw new UnauthorizedException('Invalid access token');
 
-    const membership = user.memberships.find((m) => m.organizationId === organizationId);
-    if (!membership) throw new UnauthorizedException('Organization membership revoked');
+    const membership = user.memberships.find(
+      (m) => m.organizationId === organizationId,
+    );
+    if (!membership)
+      throw new UnauthorizedException('Organization membership revoked');
 
     return this.toCurrentUser(user, membership) as AuthenticatedUser;
   }
@@ -307,7 +465,9 @@ export class AuthService {
   // ── Seat limit enforcement ─────────────────────────────────────────────────
 
   private async assertSeatAvailable(organizationId: string): Promise<void> {
-    const memberships = await this.membershipsRepo.count({ where: { organizationId } });
+    const memberships = await this.membershipsRepo.count({
+      where: { organizationId },
+    });
     const raw = await this.invitationsRepo
       .createQueryBuilder('inv')
       .select('COUNT(*)', 'count')
@@ -319,13 +479,29 @@ export class AuthService {
     const pendingCount = parseInt(raw?.count ?? '0', 10);
     const usedSeats = memberships + pendingCount;
     if (usedSeats >= FREE_PLAN_SEAT_LIMIT) {
-      throw new ConflictException(`Organization has reached the ${FREE_PLAN_SEAT_LIMIT}-seat free plan limit`);
+      throw new ConflictException(
+        `Organization has reached the ${FREE_PLAN_SEAT_LIMIT}-seat free plan limit`,
+      );
     }
+  }
+
+  private async hasPendingInvitations(email: string): Promise<boolean> {
+    const count = await this.invitationsRepo
+      .createQueryBuilder('inv')
+      .where('LOWER(inv.email) = LOWER(:email)', { email })
+      .andWhere('inv."acceptedAt" IS NULL')
+      .andWhere('inv."expiresAt" > NOW()')
+      .getCount();
+    return count > 0;
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  private async signToken(userId: string, organizationId: string, role: Role): Promise<string> {
+  private async signToken(
+    userId: string,
+    organizationId: string,
+    role: Role,
+  ): Promise<string> {
     return this.jwtService.signAsync({ sub: userId, organizationId, role });
   }
 

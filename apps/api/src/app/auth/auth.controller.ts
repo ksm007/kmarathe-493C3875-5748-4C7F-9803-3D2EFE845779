@@ -1,9 +1,18 @@
 import { CurrentUser, Public } from '@nx-temp/auth';
-import { LoginResponse } from '@nx-temp/data';
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { GoogleAuthResponse, LoginResponse } from '@nx-temp/data';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { GoogleSignInDto } from './dto/google-sign-in.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -26,13 +35,26 @@ export class AuthController {
   @SkipThrottle({ invite: true })
   @Post('register')
   register(@Body() body: RegisterDto): Promise<LoginResponse> {
-    return this.authService.register(body.email, body.fullName, body.password, body.organizationName);
+    return this.authService.register(
+      body.email,
+      body.fullName,
+      body.password,
+      body.organizationName,
+    );
+  }
+
+  @Public()
+  @UseGuards(ThrottlerGuard)
+  @SkipThrottle({ invite: true })
+  @Post('google')
+  googleSignIn(@Body() body: GoogleSignInDto): Promise<GoogleAuthResponse> {
+    return this.authService.googleSignIn(body.idToken);
   }
 
   @Post('switch-org')
   switchOrg(
     @CurrentUser() user: LoginResponse['user'],
-    @Body() body: SwitchOrgDto
+    @Body() body: SwitchOrgDto,
   ): Promise<LoginResponse> {
     return this.authService.switchOrg(user.id, body.organizationId);
   }
