@@ -75,3 +75,28 @@ Do not replace this with a plain `navigate({ to: '/tasks' })` - that would break
   When constructing either by hand in tests, pass a real `AuditService` (for integration tests that verify audit entries) or `{ log: jest.fn() } as unknown as AuditService` (for tests that do not).
   Existing specs updated: `api.integration.spec.ts` (real `auditService`), `auth/google-auth.spec.ts` (stub).
 - Tests: `invitations/invitations-audit.spec.ts` (pg-mem, covers create/accept-success/accept-expired/accept-invalid/accept-replay).
+
+## apps/web routing - public landing page
+
+- The public marketing landing page lives at `apps/web/src/routes/index.tsx` (the `/` route).
+  It redirects signed-in users to `/tasks`.
+  The old `_authed.index.tsx` (which previously provided a `/` redirect to `/tasks` inside the authed layout) was removed because TanStack Router treats both files as the same `/` path and raises a conflicting-paths error at build time.
+  When adding any route that competes with `/`, check for this conflict first.
+
+## apps/web task analytics view
+
+- The task board has three view modes: `board`, `list`, `analytics`.
+  The `analytics` mode renders `TaskAnalyticsView` (defined inline in `_authed.tasks.tsx`) - stat cards, a completion `RingProgress`, and CSS bar charts using `PriorityBar` - no external chart library.
+  The sprint filter axis uses a `sprintsQuery` loaded alongside `tasksQuery` via a separate `['sprints-all']` cache key.
+
+## apps/web acceptance criteria interactive toggle
+
+- `TaskDetailModal` persists AC toggle/add changes via `updateTask` (full criteria array replacement via `AcceptanceCriteriaInput[]`).
+  Each toggle sends the whole current criteria list with the toggled item's `completed` flipped.
+  New items use `id: ''` (the backend assigns an id on creation).
+  The `TaskDetailSummary` subcomponent owns the AC UI and receives `onToggleCriterion`, `onAddCriterion`, and `criteriaUpdating` props from the parent modal.
+
+## apps/web RBAC - Admin cannot remove Owner
+
+- In `_authed.team.tsx` the Remove button is also disabled when `currentUser.role === Role.Admin && user.role === Role.Owner`.
+  Only Owners can remove other Owners.
