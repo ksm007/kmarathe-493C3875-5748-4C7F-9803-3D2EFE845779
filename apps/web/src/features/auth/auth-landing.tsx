@@ -78,6 +78,10 @@ export function AuthLanding({ mode }: { mode: AuthMode }) {
     email: '',
     password: '',
   });
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [confirmPasswordError, setConfirmPasswordError] = useState<
+    string | null
+  >(null);
 
   const loginMutation = useMutation({
     mutationFn: apiClient.login,
@@ -360,6 +364,11 @@ export function AuthLanding({ mode }: { mode: AuthMode }) {
                       <form
                         onSubmit={(event) => {
                           event.preventDefault();
+                          if (signupForm.password !== confirmPassword) {
+                            setConfirmPasswordError('Passwords do not match');
+                            return;
+                          }
+                          setConfirmPasswordError(null);
                           signupMutation.mutate(signupForm);
                         }}
                       >
@@ -407,12 +416,42 @@ export function AuthLanding({ mode }: { mode: AuthMode }) {
                             autoComplete="new-password"
                             minLength={8}
                             value={signupForm.password}
-                            onChange={(event) =>
+                            onChange={(event) => {
                               setSignupForm((current) => ({
                                 ...current,
                                 password: event.target.value,
-                              }))
-                            }
+                              }));
+                              if (
+                                confirmPassword &&
+                                event.target.value !== confirmPassword
+                              ) {
+                                setConfirmPasswordError(
+                                  'Passwords do not match',
+                                );
+                              } else {
+                                setConfirmPasswordError(null);
+                              }
+                            }}
+                            required
+                          />
+                          <PasswordInput
+                            label="Confirm password"
+                            autoComplete="new-password"
+                            value={confirmPassword}
+                            error={confirmPasswordError}
+                            onChange={(event) => {
+                              setConfirmPassword(event.target.value);
+                              if (
+                                event.target.value &&
+                                event.target.value !== signupForm.password
+                              ) {
+                                setConfirmPasswordError(
+                                  'Passwords do not match',
+                                );
+                              } else {
+                                setConfirmPasswordError(null);
+                              }
+                            }}
                             required
                           />
                           <SubmitButton pending={pending}>

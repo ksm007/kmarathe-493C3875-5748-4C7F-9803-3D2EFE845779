@@ -5,18 +5,22 @@ import {
   Box,
   Button,
   Center,
+  Divider,
   Group,
   Loader,
   Paper,
+  SimpleGrid,
   Stack,
   Text,
   Textarea,
+  ThemeIcon,
   Title,
+  Tooltip,
 } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, createFileRoute } from '@tanstack/react-router';
 import type { ChatMessage, PendingChatAction } from '@nx-temp/data';
-import { Check, Sparkles, X } from 'lucide-react';
+import { Check, Lightbulb, MessageSquarePlus, Sparkles, X, Zap } from 'lucide-react';
 import { apiClient } from '~/lib/api-client';
 import { getStoredSession } from '~/lib/auth-storage';
 import { formatError } from '~/lib/format';
@@ -95,6 +99,15 @@ function ChatRoute() {
       historyQuery.error ?? confirmMutation.error ?? cancelMutation.error,
     );
 
+  const quickActions = [
+    { label: 'List all open tasks', prompt: 'List all tasks that are not yet done.' },
+    { label: 'Summarize this sprint', prompt: 'Summarize the active sprint: tasks, progress, and blockers.' },
+    { label: 'High priority tasks', prompt: 'Which tasks have high priority and are not yet done?' },
+    { label: 'Overdue tasks', prompt: 'Are there any tasks with a due date that has already passed?' },
+    { label: 'Create a task', prompt: 'Create a new task: ' },
+    { label: 'Assign task', prompt: 'Assign task "" to ' },
+  ];
+
   return (
     <Stack gap="lg">
       <Group justify="space-between" align="flex-start" gap="md">
@@ -106,69 +119,133 @@ function ChatRoute() {
         </Box>
       </Group>
 
-      <Paper withBorder radius="md" p="md">
-        <Stack gap="md">
-          {historyQuery.isPending ? (
-            <Center py="xl">
-              <Loader />
-            </Center>
-          ) : messages.length ? (
-            messages.map((chatMessage) => (
-              <ChatMessageItem
-                key={chatMessage.id}
-                actionPending={actionPending}
-                message={chatMessage}
-                onCancel={(action) => cancelMutation.mutate(action.id)}
-                onConfirm={(action) => confirmMutation.mutate(action.id)}
-              />
-            ))
-          ) : (
-            <Text c="dimmed">No chat history</Text>
-          )}
-          {streamedAnswer ? (
-            <Paper withBorder radius="md" p="sm" className="task-card">
-              <Text size="xs" c="dimmed" mb={4}>
-                Assistant
-              </Text>
-              <Text size="sm">{streamedAnswer}</Text>
-            </Paper>
-          ) : null}
-        </Stack>
-      </Paper>
-
-      {error ? <Alert color="red">{error}</Alert> : null}
-
-      <Paper withBorder radius="md" p="md">
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (message.trim()) {
-              askMutation.mutate(message.trim());
-            }
-          }}
-        >
+      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md" style={{ alignItems: 'start' }}>
+        <Box style={{ gridColumn: 'span 2' }}>
           <Stack gap="md">
-            <Textarea
-              autosize
-              label="Message"
-              maxLength={4000}
-              minRows={3}
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              required
-            />
-            <Group justify="flex-end">
-              <Button
-                leftSection={<Sparkles size={16} />}
-                loading={askMutation.isPending}
-                type="submit"
+            <Paper withBorder radius="md" p="md">
+              <Stack gap="md">
+                {historyQuery.isPending ? (
+                  <Center py="xl">
+                    <Loader />
+                  </Center>
+                ) : messages.length ? (
+                  messages.map((chatMessage) => (
+                    <ChatMessageItem
+                      key={chatMessage.id}
+                      actionPending={actionPending}
+                      message={chatMessage}
+                      onCancel={(action) => cancelMutation.mutate(action.id)}
+                      onConfirm={(action) => confirmMutation.mutate(action.id)}
+                    />
+                  ))
+                ) : (
+                  <Text c="dimmed">No chat history. Use quick actions or type a question below.</Text>
+                )}
+                {streamedAnswer ? (
+                  <Paper withBorder radius="md" p="sm" className="task-card">
+                    <Text size="xs" c="dimmed" mb={4}>
+                      Assistant
+                    </Text>
+                    <Text size="sm">{streamedAnswer}</Text>
+                  </Paper>
+                ) : null}
+              </Stack>
+            </Paper>
+
+            {error ? <Alert color="red">{error}</Alert> : null}
+
+            <Paper withBorder radius="md" p="md">
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (message.trim()) {
+                    askMutation.mutate(message.trim());
+                  }
+                }}
               >
-                Send
-              </Button>
-            </Group>
+                <Stack gap="md">
+                  <Textarea
+                    autosize
+                    label="Message"
+                    maxLength={4000}
+                    minRows={3}
+                    value={message}
+                    onChange={(event) => setMessage(event.target.value)}
+                    required
+                  />
+                  <Group justify="space-between" align="center">
+                    <Text size="xs" c="dimmed">
+                      The AI can read your tasks and propose changes for your review.
+                    </Text>
+                    <Button
+                      leftSection={<Sparkles size={16} />}
+                      loading={askMutation.isPending}
+                      type="submit"
+                    >
+                      Send
+                    </Button>
+                  </Group>
+                </Stack>
+              </form>
+            </Paper>
           </Stack>
-        </form>
-      </Paper>
+        </Box>
+
+        <Stack gap="md">
+          <Paper withBorder radius="md" p="md">
+            <Stack gap="sm">
+              <Group gap="xs">
+                <ThemeIcon size={28} radius="md" color="blue" variant="light">
+                  <Zap size={14} />
+                </ThemeIcon>
+                <Text fw={700} size="sm">
+                  Quick actions
+                </Text>
+              </Group>
+              <Divider />
+              {quickActions.map((action) => (
+                <Button
+                  key={action.label}
+                  variant="subtle"
+                  size="xs"
+                  fullWidth
+                  justify="left"
+                  leftSection={<MessageSquarePlus size={13} />}
+                  onClick={() => setMessage(action.prompt)}
+                >
+                  {action.label}
+                </Button>
+              ))}
+            </Stack>
+          </Paper>
+
+          <Paper withBorder radius="md" p="md">
+            <Stack gap="sm">
+              <Group gap="xs">
+                <ThemeIcon size={28} radius="md" color="yellow" variant="light">
+                  <Lightbulb size={14} />
+                </ThemeIcon>
+                <Text fw={700} size="sm">
+                  Tips
+                </Text>
+              </Group>
+              <Divider />
+              <Stack gap="xs">
+                {[
+                  'Be specific: "Create a bug for login failing on mobile" works better than "create a task".',
+                  'The AI sees all tasks in your organization.',
+                  'Changes are staged for confirmation - you approve before anything is saved.',
+                  'Ask for summaries: "Summarize high priority tasks for this sprint."',
+                ].map((tip, i) => (
+                  <Text key={i} size="xs" c="dimmed" lh={1.5}>
+                    {tip}
+                  </Text>
+                ))}
+              </Stack>
+            </Stack>
+          </Paper>
+        </Stack>
+      </SimpleGrid>
     </Stack>
   );
 }
@@ -204,16 +281,24 @@ function ChatMessageItem({
         {message.sources.length ? (
           <Group gap="xs">
             {message.sources.map((source) => (
-              <Link
+              <Tooltip
                 key={source.taskId}
-                to="/tasks/$id"
-                params={{ id: source.taskId }}
-                style={{ textDecoration: 'none' }}
+                label={`Similarity: ${Math.round(source.similarity * 100)}%`}
+                withArrow
               >
-                <Badge variant="outline" style={{ cursor: 'pointer' }}>
-                  {source.title}
-                </Badge>
-              </Link>
+                <Link
+                  to="/tasks/$id"
+                  params={{ id: source.taskId }}
+                  style={{ textDecoration: 'none' }}
+                >
+                  <Badge variant="outline" style={{ cursor: 'pointer' }}>
+                    {source.title}{' '}
+                    <Text span size="xs" c="dimmed">
+                      {Math.round(source.similarity * 100)}%
+                    </Text>
+                  </Badge>
+                </Link>
+              </Tooltip>
             ))}
           </Group>
         ) : null}

@@ -15,7 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as AcceptInviteRouteImport } from './routes/accept-invite'
 import { Route as AuthedRouteImport } from './routes/_authed'
-import { Route as AuthedIndexRouteImport } from './routes/_authed.index'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthedTeamRouteImport } from './routes/_authed.team'
 import { Route as AuthedTasksRouteImport } from './routes/_authed.tasks'
 import { Route as AuthedAiChatRouteImport } from './routes/_authed.ai-chat'
@@ -55,10 +55,10 @@ const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthedIndexRoute = AuthedIndexRouteImport.update({
+const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AuthedRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthedTeamRoute = AuthedTeamRouteImport.update({
   id: '/team',
@@ -106,7 +106,7 @@ const AuthedAdminAuditLogRoute = AuthedAdminAuditLogRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof AuthedIndexRoute
+  '/': typeof IndexRoute
   '/accept-invite': typeof AcceptInviteRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
@@ -122,12 +122,12 @@ export interface FileRoutesByFullPath {
   '/tasks/': typeof AuthedTasksIndexRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof IndexRoute
   '/accept-invite': typeof AcceptInviteRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
-  '/': typeof AuthedIndexRoute
   '/ai-chat': typeof AuthedAiChatRoute
   '/team': typeof AuthedTeamRoute
   '/audit-log': typeof AuthedAdminAuditLogRoute
@@ -138,6 +138,7 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
   '/_authed': typeof AuthedRouteWithChildren
   '/accept-invite': typeof AcceptInviteRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -148,7 +149,6 @@ export interface FileRoutesById {
   '/_authed/ai-chat': typeof AuthedAiChatRoute
   '/_authed/tasks': typeof AuthedTasksRouteWithChildren
   '/_authed/team': typeof AuthedTeamRoute
-  '/_authed/': typeof AuthedIndexRoute
   '/_authed/_admin/audit-log': typeof AuthedAdminAuditLogRoute
   '/_authed/_admin/sprints': typeof AuthedAdminSprintsRoute
   '/_authed/reports/standup': typeof AuthedReportsStandupRoute
@@ -174,12 +174,12 @@ export interface FileRouteTypes {
     | '/tasks/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/'
     | '/accept-invite'
     | '/forgot-password'
     | '/login'
     | '/reset-password'
     | '/signup'
-    | '/'
     | '/ai-chat'
     | '/team'
     | '/audit-log'
@@ -189,6 +189,7 @@ export interface FileRouteTypes {
     | '/tasks'
   id:
     | '__root__'
+    | '/'
     | '/_authed'
     | '/accept-invite'
     | '/forgot-password'
@@ -199,7 +200,6 @@ export interface FileRouteTypes {
     | '/_authed/ai-chat'
     | '/_authed/tasks'
     | '/_authed/team'
-    | '/_authed/'
     | '/_authed/_admin/audit-log'
     | '/_authed/_admin/sprints'
     | '/_authed/reports/standup'
@@ -208,6 +208,7 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
   AuthedRoute: typeof AuthedRouteWithChildren
   AcceptInviteRoute: typeof AcceptInviteRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
@@ -260,12 +261,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authed/': {
-      id: '/_authed/'
+    '/': {
+      id: '/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof AuthedIndexRouteImport
-      parentRoute: typeof AuthedRoute
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authed/team': {
       id: '/_authed/team'
@@ -366,7 +367,6 @@ interface AuthedRouteChildren {
   AuthedAiChatRoute: typeof AuthedAiChatRoute
   AuthedTasksRoute: typeof AuthedTasksRouteWithChildren
   AuthedTeamRoute: typeof AuthedTeamRoute
-  AuthedIndexRoute: typeof AuthedIndexRoute
   AuthedReportsStandupRoute: typeof AuthedReportsStandupRoute
 }
 
@@ -375,7 +375,6 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAiChatRoute: AuthedAiChatRoute,
   AuthedTasksRoute: AuthedTasksRouteWithChildren,
   AuthedTeamRoute: AuthedTeamRoute,
-  AuthedIndexRoute: AuthedIndexRoute,
   AuthedReportsStandupRoute: AuthedReportsStandupRoute,
 }
 
@@ -383,6 +382,7 @@ const AuthedRouteWithChildren =
   AuthedRoute._addFileChildren(AuthedRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
   AuthedRoute: AuthedRouteWithChildren,
   AcceptInviteRoute: AcceptInviteRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,

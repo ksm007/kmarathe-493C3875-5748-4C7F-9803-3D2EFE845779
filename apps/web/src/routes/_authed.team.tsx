@@ -226,11 +226,19 @@ function TeamRoute() {
                         disabled={
                           !canManageTeam ||
                           user.id === currentUser.id ||
-                          pending
+                          pending ||
+                          (currentUser.role === Role.Admin &&
+                            user.role === Role.Owner)
                         }
                         leftSection={<UserMinus size={14} />}
                         size="compact-xs"
                         variant="subtle"
+                        title={
+                          currentUser.role === Role.Admin &&
+                          user.role === Role.Owner
+                            ? 'Admins cannot remove Owners'
+                            : undefined
+                        }
                         onClick={() => removeUser(user)}
                       >
                         Remove
