@@ -61,3 +61,17 @@ Do not replace this with a plain `navigate({ to: '/tasks' })` - that would break
 - Rate limiting: `POST /auth/google` uses the same `auth` throttler as login/register (`@SkipThrottle({ invite: true })`).
 - Tests: `auth/google-auth.spec.ts` covers token verification delegation, account linking, password sign-in coexistence, no-silent-org (ADR 0005), pending invitation detection; `auth/auth-throttler.spec.ts` covers 429 on the Google route. `api.integration.spec.ts` wires a `jest.fn()` stub as `GoogleVerifierService` - adding constructor params to `AuthService` requires updating both specs.
 - `google-auth-library` is in root `package.json` dependencies.
+
+## Invitation audit logging (apps/api)
+
+- Three invitation lifecycle events are recorded via `AuditService`:
+  `invitations.create` (actor = inviting user, `allowed=true`, no `resourceId`, metadata includes `role` and `targetEmail`);
+  `invitations.accept` on success (actor constructed from the newly-created/existing user + membership + invitation.organization, `allowed=true`, `resourceId=invitation.id`);
+  `invitations.accept` on failure - invalid, expired, or already-used token - (actor=null, `allowed=false`, `reason='Invite link is invalid or has expired'`).
+- `create` audit is logged in `InvitationsService.create()` after the invitation email is sent.
+  `accept` audits are logged in `AuthService.acceptInvitation()` before throwing on failure, and after marking `acceptedAt` on success.
+- `AuthModule` and `InvitationsModule` both import `AuditModule` directly so `AuditService` is injectable.
+- `AuditService` is now a constructor param of both `AuthService` and `InvitationsService`.
+  When constructing either by hand in tests, pass a real `AuditService` (for integration tests that verify audit entries) or `{ log: jest.fn() } as unknown as AuditService` (for tests that do not).
+  Existing specs updated: `api.integration.spec.ts` (real `auditService`), `auth/google-auth.spec.ts` (stub).
+- Tests: `invitations/invitations-audit.spec.ts` (pg-mem, covers create/accept-success/accept-expired/accept-invalid/accept-replay).

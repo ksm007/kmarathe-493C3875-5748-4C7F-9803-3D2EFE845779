@@ -27,6 +27,7 @@ import {
   TaskEntity,
   UserEntity,
 } from '../database/entities';
+import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 
 describe('Google sign-in', () => {
@@ -116,6 +117,7 @@ describe('Google sign-in', () => {
       resetTokensRepository,
       loginAttemptService,
       googleVerifier as unknown as GoogleVerifierService,
+      { log: jest.fn() } as unknown as AuditService,
     );
   });
 

@@ -3,6 +3,7 @@ import { InvitationResponse, Role } from '@nx-temp/data';
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
+import { AuditService } from '../audit/audit.service';
 import { AuthService } from '../auth/auth.service';
 import { InvitationEntity } from '../database/entities';
 import { EmailService } from '../email/email.service';
@@ -13,10 +14,15 @@ export class InvitationsService {
     private readonly authService: AuthService,
     private readonly emailService: EmailService,
     @InjectRepository(InvitationEntity)
-    private readonly invitationsRepo: Repository<InvitationEntity>
+    private readonly invitationsRepo: Repository<InvitationEntity>,
+    private readonly auditService: AuditService,
   ) {}
 
-  async create(requester: AuthenticatedUser, email: string, role: Role): Promise<void> {
+  async create(
+    requester: AuthenticatedUser,
+    email: string,
+    role: Role,
+  ): Promise<void> {
     if (!requester.role) throw new ForbiddenException();
     if (requester.role === Role.Admin && role === Role.Owner) {
       throw new ForbiddenException('Admins cannot invite Owner accounts');
@@ -26,11 +32,29 @@ export class InvitationsService {
       requester.organizationId,
       email,
       role,
-      requester.id
+      requester.id,
     );
 
     const org = requester.organizationName;
-    await this.emailService.sendInvitation(email, rawToken, org, requester.fullName);
+    await this.emailService.sendInvitation(
+      email,
+      rawToken,
+      org,
+      requester.fullName,
+    );
+
+    try {
+      await this.auditService.log({
+        actor: requester,
+        action: 'invitations.create',
+        resource: 'invitation',
+        organizationId: requester.organizationId,
+        allowed: true,
+        metadata: { role, targetEmail: email },
+      });
+    } catch {
+      // audit failure must not surface as an invite failure
+    }
   }
 
   async list(requester: AuthenticatedUser): Promise<InvitationResponse[]> {

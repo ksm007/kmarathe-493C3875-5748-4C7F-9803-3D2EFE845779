@@ -175,11 +175,13 @@ describe('API integration', () => {
       passwordResetTokensRepository,
       loginAttemptService,
       googleVerifier,
+      auditService,
     );
     invitationsService = new InvitationsService(
       authService,
       emailService,
       invitationsRepository,
+      auditService,
     );
 
     new UsersService(usersRepository, membershipsRepository);

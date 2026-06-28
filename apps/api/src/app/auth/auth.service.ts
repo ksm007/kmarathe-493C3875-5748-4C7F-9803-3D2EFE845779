@@ -17,6 +17,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 import { LoginAttemptService } from './login-attempt.service';
 import {
@@ -49,6 +50,7 @@ export class AuthService {
     private readonly resetTokensRepo: Repository<PasswordResetTokenEntity>,
     private readonly loginAttempts: LoginAttemptService,
     private readonly googleVerifier: GoogleVerifierService,
+    private readonly auditService: AuditService,
   ) {}
 
   // ── Login ─────────────────────────────────────────────────────────────────
@@ -371,6 +373,17 @@ export class AuthService {
     });
 
     if (!invitation || invitation.expiresAt < new Date()) {
+      try {
+        await this.auditService.log({
+          actor: null,
+          action: 'invitations.accept',
+          resource: 'invitation',
+          allowed: false,
+          reason: 'Invite link is invalid or has expired',
+        });
+      } catch {
+        // audit failure must not swallow the intended error response
+      }
       throw new BadRequestException('Invite link is invalid or has expired');
     }
 
@@ -431,6 +444,29 @@ export class AuthService {
     const activeMembership = user.memberships.find(
       (m) => m.organizationId === invitation.organizationId,
     )!;
+
+    try {
+      await this.auditService.log({
+        actor: {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          role: activeMembership.role as Role,
+          organizationId: invitation.organizationId,
+          organizationName: invitation.organization.name,
+          memberships: [],
+        } as AuthenticatedUser,
+        action: 'invitations.accept',
+        resource: 'invitation',
+        resourceId: invitation.id,
+        organizationId: invitation.organizationId,
+        allowed: true,
+        metadata: { invitedEmail: invitation.email, role: invitation.role },
+      });
+    } catch {
+      // audit failure must not block the user's session
+    }
+
     const accessToken = await this.signToken(
       user.id,
       activeMembership.organizationId,
