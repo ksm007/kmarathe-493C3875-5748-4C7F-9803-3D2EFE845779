@@ -1,4 +1,5 @@
 import { get as httpsGet } from 'https';
+import type { IncomingMessage } from 'http';
 import { PassThrough, Readable } from 'stream';
 import { AttachmentStorageAdapter } from './attachment-storage.adapter';
 
@@ -143,20 +144,67 @@ export class CloudinaryAttachmentStorageAdapter
   }
 }
 
-function defaultFetchStream(url: string): Promise<FetchResult> {
+const CLOUDINARY_HOST_RE = /(?:^|\.)cloudinary\.com$/;
+const MAX_REDIRECTS = 5;
+
+type GetFn = (
+  url: string,
+  cb: (res: IncomingMessage) => void,
+) => { on(event: 'error', cb: (err: Error) => void): unknown };
+
+export function fetchWithRedirects(
+  url: string,
+  hops: number,
+  get: GetFn,
+): Promise<FetchResult> {
   return new Promise((resolve, reject) => {
-    httpsGet(url, (response) => {
+    get(url, (response) => {
       const status = response.statusCode ?? 0;
-      if (status < 200 || status >= 300) {
+
+      if (status >= 300 && status < 400) {
         response.resume();
-        reject(
-          new Error(`Cloudinary fetch failed with status ${status}`),
-        );
+        if (hops >= MAX_REDIRECTS) {
+          reject(new Error(`Cloudinary fetch exceeded ${MAX_REDIRECTS} redirects`));
+          return;
+        }
+        const location = response.headers['location'] as string | undefined;
+        if (!location) {
+          reject(new Error('Cloudinary redirect missing Location header'));
+          return;
+        }
+        let redirectUrl: URL;
+        try {
+          redirectUrl = new URL(location, url);
+        } catch {
+          reject(new Error(`Cloudinary redirect has invalid Location: ${location}`));
+          return;
+        }
+        if (redirectUrl.protocol !== 'https:') {
+          reject(new Error('Cloudinary redirect rejected: non-https scheme in Location'));
+          return;
+        }
+        if (!CLOUDINARY_HOST_RE.test(redirectUrl.hostname)) {
+          reject(new Error(`Cloudinary redirect rejected: off-domain host ${redirectUrl.hostname}`));
+          return;
+        }
+        fetchWithRedirects(redirectUrl.href, hops + 1, get).then(resolve, reject);
         return;
       }
+
+      if (status < 200 || status >= 300) {
+        response.resume();
+        reject(new Error(`Cloudinary fetch failed with status ${status}`));
+        return;
+      }
+
       const rawLength = response.headers['content-length'];
-      const byteLength = rawLength ? parseInt(rawLength, 10) : null;
-      resolve({ stream: response, byteLength });
+      const n = Number(rawLength);
+      const byteLength = Number.isFinite(n) ? n : null;
+      resolve({ stream: response as unknown as Readable, byteLength });
     }).on('error', reject);
   });
+}
+
+function defaultFetchStream(url: string): Promise<FetchResult> {
+  return fetchWithRedirects(url, 0, httpsGet);
 }
