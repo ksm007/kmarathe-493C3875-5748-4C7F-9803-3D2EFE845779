@@ -14,6 +14,7 @@ import { IsNull, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { EmailService } from '../email/email.service';
+import { LoginAttemptService } from './login-attempt.service';
 import {
   InvitationEntity,
   MembershipEntity,
@@ -41,12 +42,16 @@ export class AuthService {
     @InjectRepository(InvitationEntity)
     private readonly invitationsRepo: Repository<InvitationEntity>,
     @InjectRepository(PasswordResetTokenEntity)
-    private readonly resetTokensRepo: Repository<PasswordResetTokenEntity>
+    private readonly resetTokensRepo: Repository<PasswordResetTokenEntity>,
+    private readonly loginAttempts: LoginAttemptService
   ) {}
 
   // ── Login ─────────────────────────────────────────────────────────────────
 
   async login(email: string, password: string): Promise<LoginResponse> {
+    // Reject early while the account is locked, before touching the database.
+    this.loginAttempts.assertNotLocked(email);
+
     const user = await this.usersRepo
       .createQueryBuilder('user')
       .addSelect('user.passwordHash')
@@ -56,13 +61,18 @@ export class AuthService {
       .getOne();
 
     if (!user || !user.passwordHash) {
+      this.loginAttempts.recordFailure(email);
       throw new UnauthorizedException('Invalid credentials');
     }
 
     const passwordMatches = await bcrypt.compare(password, user.passwordHash);
     if (!passwordMatches) {
+      this.loginAttempts.recordFailure(email);
       throw new UnauthorizedException('Invalid credentials');
     }
+
+    // Credentials are valid - clear any accumulated failures for this account.
+    this.loginAttempts.reset(email);
 
     if (!user.memberships.length) {
       throw new UnauthorizedException('Account has no organization membership');

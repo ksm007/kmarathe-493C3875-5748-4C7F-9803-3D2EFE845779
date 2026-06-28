@@ -1,6 +1,7 @@
 import { CurrentUser, Public } from '@nx-temp/auth';
 import { LoginResponse } from '@nx-temp/data';
-import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
@@ -13,12 +14,16 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  @UseGuards(ThrottlerGuard)
+  @SkipThrottle({ invite: true })
   @Post('login')
   login(@Body() body: LoginDto): Promise<LoginResponse> {
     return this.authService.login(body.email, body.password);
   }
 
   @Public()
+  @UseGuards(ThrottlerGuard)
+  @SkipThrottle({ invite: true })
   @Post('register')
   register(@Body() body: RegisterDto): Promise<LoginResponse> {
     return this.authService.register(body.email, body.fullName, body.password, body.organizationName);
@@ -33,6 +38,8 @@ export class AuthController {
   }
 
   @Public()
+  @UseGuards(ThrottlerGuard)
+  @SkipThrottle({ invite: true })
   @HttpCode(HttpStatus.NO_CONTENT)
   @Post('forgot-password')
   forgotPassword(@Body() body: ForgotPasswordDto): Promise<void> {
@@ -40,6 +47,8 @@ export class AuthController {
   }
 
   @Public()
+  @UseGuards(ThrottlerGuard)
+  @SkipThrottle({ invite: true })
   @HttpCode(HttpStatus.NO_CONTENT)
   @Post('reset-password')
   resetPassword(@Body() body: ResetPasswordDto): Promise<void> {
