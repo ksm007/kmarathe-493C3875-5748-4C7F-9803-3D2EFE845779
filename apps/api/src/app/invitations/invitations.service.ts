@@ -18,7 +18,11 @@ export class InvitationsService {
     private readonly auditService: AuditService,
   ) {}
 
-  async create(requester: AuthenticatedUser, email: string, role: Role): Promise<void> {
+  async create(
+    requester: AuthenticatedUser,
+    email: string,
+    role: Role,
+  ): Promise<void> {
     if (!requester.role) throw new ForbiddenException();
     if (requester.role === Role.Admin && role === Role.Owner) {
       throw new ForbiddenException('Admins cannot invite Owner accounts');
@@ -28,11 +32,16 @@ export class InvitationsService {
       requester.organizationId,
       email,
       role,
-      requester.id
+      requester.id,
     );
 
     const org = requester.organizationName;
-    await this.emailService.sendInvitation(email, rawToken, org, requester.fullName);
+    await this.emailService.sendInvitation(
+      email,
+      rawToken,
+      org,
+      requester.fullName,
+    );
 
     try {
       await this.auditService.log({

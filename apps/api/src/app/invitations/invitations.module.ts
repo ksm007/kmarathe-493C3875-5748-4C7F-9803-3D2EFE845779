@@ -8,7 +8,12 @@ import { InvitationsController } from './invitations.controller';
 import { InvitationsService } from './invitations.service';
 
 @Module({
-  imports: [AuditModule, AuthModule, EmailModule, TypeOrmModule.forFeature([InvitationEntity])],
+  imports: [
+    AuditModule,
+    AuthModule,
+    EmailModule,
+    TypeOrmModule.forFeature([InvitationEntity]),
+  ],
   controllers: [InvitationsController],
   providers: [InvitationsService],
 })

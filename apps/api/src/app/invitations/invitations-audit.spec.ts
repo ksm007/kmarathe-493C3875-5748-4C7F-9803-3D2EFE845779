@@ -33,7 +33,9 @@ const OWNER_AUTH = {
   role: Role.Owner,
   organizationId: 'org-1',
   organizationName: 'Acme',
-  memberships: [{ organizationId: 'org-1', organizationName: 'Acme', role: Role.Owner }],
+  memberships: [
+    { organizationId: 'org-1', organizationName: 'Acme', role: Role.Owner },
+  ],
 };
 
 describe('invitation audit logging', () => {
@@ -101,12 +103,17 @@ describe('invitation audit logging', () => {
         LOGIN_LOCKOUT_SECONDS: 900,
       }),
     );
-    const googleVerifier = { verifyIdToken: jest.fn() } as unknown as GoogleVerifierService;
+    const googleVerifier = {
+      verifyIdToken: jest.fn(),
+    } as unknown as GoogleVerifierService;
 
     auditService = new AuditService(auditRepository);
 
     authService = new AuthService(
-      new JwtService({ secret: 'test-secret', signOptions: { expiresIn: '1h' as never } }),
+      new JwtService({
+        secret: 'test-secret',
+        signOptions: { expiresIn: '1h' as never },
+      }),
       new ConfigService({ JWT_SECRET: 'test-secret', JWT_EXPIRES_IN: '1h' }),
       emailService,
       usersRepository,
@@ -165,7 +172,9 @@ describe('invitation audit logging', () => {
 
     await invitationsService.create(actor, 'invitee@acme.test', Role.Viewer);
 
-    const entries = await auditRepository.find({ where: { action: 'invitations.create' } });
+    const entries = await auditRepository.find({
+      where: { action: 'invitations.create' },
+    });
     expect(entries).toHaveLength(1);
     const entry = entries[0];
     expect(entry.allowed).toBe(true);
@@ -174,7 +183,10 @@ describe('invitation audit logging', () => {
     expect(entry.organizationId).toBe(org.id);
     expect(entry.resource).toBe('invitation');
     expect(entry.resourceId).toBeNull();
-    expect(entry.metadata).toMatchObject({ role: Role.Viewer, targetEmail: 'invitee@acme.test' });
+    expect(entry.metadata).toMatchObject({
+      role: Role.Viewer,
+      targetEmail: 'invitee@acme.test',
+    });
   });
 
   it('creates an allowed audit entry when an invitation is accepted', async () => {
@@ -188,14 +200,19 @@ describe('invitation audit logging', () => {
 
     await authService.acceptInvitation(rawToken, 'New Member', 'Password123!');
 
-    const entries = await auditRepository.find({ where: { action: 'invitations.accept' } });
+    const entries = await auditRepository.find({
+      where: { action: 'invitations.accept' },
+    });
     expect(entries).toHaveLength(1);
     const entry = entries[0];
     expect(entry.allowed).toBe(true);
     expect(entry.actorEmail).toBe('newmember@acme.test');
     expect(entry.organizationId).toBe(org.id);
     expect(entry.resource).toBe('invitation');
-    expect(entry.metadata).toMatchObject({ invitedEmail: 'newmember@acme.test', role: Role.Admin });
+    expect(entry.metadata).toMatchObject({
+      invitedEmail: 'newmember@acme.test',
+      role: Role.Admin,
+    });
   });
 
   it('creates a denied audit entry when an expired token is used', async () => {
@@ -221,7 +238,9 @@ describe('invitation audit logging', () => {
       authService.acceptInvitation(expiredToken, 'Someone', 'Password123!'),
     ).rejects.toThrow('Invite link is invalid or has expired');
 
-    const entries = await auditRepository.find({ where: { action: 'invitations.accept' } });
+    const entries = await auditRepository.find({
+      where: { action: 'invitations.accept' },
+    });
     expect(entries).toHaveLength(1);
     const entry = entries[0];
     expect(entry.allowed).toBe(false);
@@ -233,7 +252,9 @@ describe('invitation audit logging', () => {
       authService.acceptInvitation('no-such-token', 'Someone', 'Password123!'),
     ).rejects.toThrow('Invite link is invalid or has expired');
 
-    const entries = await auditRepository.find({ where: { action: 'invitations.accept' } });
+    const entries = await auditRepository.find({
+      where: { action: 'invitations.accept' },
+    });
     expect(entries).toHaveLength(1);
     expect(entries[0].allowed).toBe(false);
     expect(entries[0].reason).toBe('Invite link is invalid or has expired');
