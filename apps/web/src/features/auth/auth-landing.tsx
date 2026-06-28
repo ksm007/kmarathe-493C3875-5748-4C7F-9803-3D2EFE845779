@@ -260,13 +260,12 @@ export function AuthLanding({ mode }: { mode: AuthMode }) {
                     {GOOGLE_CLIENT_ID ? (
                       <>
                         <Stack gap="xs">
+                          <Box ref={googleButtonRef} style={{ minHeight: 44, display: googleSignInMutation.isPending ? 'none' : undefined }} />
                           {googleSignInMutation.isPending ? (
                             <Button fullWidth variant="default" loading leftSection={<Loader2 size={16} />}>
                               Signing in with Google...
                             </Button>
-                          ) : (
-                            <Box ref={googleButtonRef} style={{ minHeight: 44 }} />
-                          )}
+                          ) : null}
                         </Stack>
 
                         {googleError ? (

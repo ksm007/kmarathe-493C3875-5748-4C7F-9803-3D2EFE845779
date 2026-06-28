@@ -31,7 +31,7 @@ export class GoogleVerifierService {
       throw new UnauthorizedException('Invalid Google ID token');
     }
 
-    if (!payload?.sub || !payload.email) {
+    if (!payload?.sub || !payload.email || !payload.email_verified) {
       throw new UnauthorizedException('Invalid Google ID token');
     }
 
