@@ -22,13 +22,14 @@ export interface AppEnv {
   LOGIN_LOCKOUT_SECONDS: number;
   // Express 'trust proxy' setting so the throttler keys on the real client IP
   // behind a reverse proxy / load balancer / ingress. Boolean, hop count, or a
-  // verbatim Express value (e.g. 'loopback', a CIDR/subnet).
+  // verbatim Express value (e.g. 'loopback', a CIDR/subnet). Defaults to 1
+  // (trust a single proxy hop) so X-Forwarded-For cannot be spoofed.
   TRUST_PROXY: boolean | number | string;
 }
 
 function normalizeTrustProxy(value: unknown): boolean | number | string {
   if (value === undefined || value === null) {
-    return true;
+    return 1;
   }
   const raw = String(value).trim();
   if (raw === '') {
