@@ -158,7 +158,7 @@ function LandingPage() {
               </ThemeIcon>
               <Box>
                 <Text size="sm" fw={700}>
-                  Turbo Vets
+                  Stride
                 </Text>
                 <Text size="xs" c="dimmed">
                   SaaS work management
@@ -199,7 +199,7 @@ function LandingPage() {
                 Plan sprints, manage issues, and keep tenant data separated.
               </Title>
               <Text size="xl" c="dimmed" ta="center" lh={1.7} maw={600}>
-                Turbo Vets gives each client organization its own workspace -
+                Stride gives each client organization its own workspace -
                 tasks, sprints, team, and AI chat - while you manage them all
                 from a single login.
               </Text>
@@ -394,7 +394,7 @@ function LandingPage() {
                 <ClipboardList size={14} aria-hidden="true" />
               </ThemeIcon>
               <Text size="sm" fw={600}>
-                Turbo Vets
+                Stride
               </Text>
             </Group>
             <Group gap="lg">
@@ -406,7 +406,7 @@ function LandingPage() {
               </Anchor>
             </Group>
             <Text size="xs" c="dimmed">
-              &copy; 2026 Turbo Vets. All rights reserved.
+              &copy; 2026 Stride. All rights reserved.
             </Text>
           </Group>
         </Container>
