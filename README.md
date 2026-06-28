@@ -326,8 +326,10 @@ OPENAI_MODEL=gpt-4o-mini
 EMBEDDING_MODEL=text-embedding-3-small
 
 # Optional — auth rate limiting & brute-force protection (defaults shown)
-AUTH_RATE_LIMIT_TTL_SECONDS=60    # per-IP window on auth + invite routes
+AUTH_RATE_LIMIT_TTL_SECONDS=60    # per-IP window on public auth + invite-accept routes
 AUTH_RATE_LIMIT_MAX=10            # max requests per IP per window
+INVITE_RATE_LIMIT_TTL_SECONDS=60  # per-IP window on authenticated invite create
+INVITE_RATE_LIMIT_MAX=50          # max invite-create requests per IP per window
 LOGIN_MAX_FAILED_ATTEMPTS=5       # failed logins per account before lockout
 LOGIN_LOCKOUT_SECONDS=900         # account lockout duration
 TRUST_PROXY=1                     # proxy hops to trust for the real client IP
