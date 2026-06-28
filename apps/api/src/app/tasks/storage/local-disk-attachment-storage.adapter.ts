@@ -25,7 +25,9 @@ export class LocalDiskAttachmentStorageAdapter implements AttachmentStorageAdapt
     return createReadStream(this.pathFor(storageKey));
   }
 
-  async openReadStream(storageKey: string): Promise<{ stream: Readable; byteLength: number | null }> {
+  async openReadStream(
+    storageKey: string,
+  ): Promise<{ stream: Readable; byteLength: number | null }> {
     const path = this.pathFor(storageKey);
     const { size } = await stat(path);
     return { stream: createReadStream(path), byteLength: size };

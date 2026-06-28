@@ -62,11 +62,8 @@ export class TasksController {
     @Res({ passthrough: true })
     response: { setHeader: (name: string, value: string | number) => void },
   ) {
-    const { attachment, stream, byteLength } = await this.tasksService.getAttachmentContent(
-      user,
-      id,
-      attachmentId,
-    );
+    const { attachment, stream, byteLength } =
+      await this.tasksService.getAttachmentContent(user, id, attachmentId);
     response.setHeader('Content-Type', attachment.contentType);
     if (byteLength !== null) {
       response.setHeader('Content-Length', byteLength);
@@ -97,7 +94,11 @@ export class TasksController {
 
   @Put(':id')
   @RequirePermissions(Permission.TaskUpdate)
-  update(@CurrentUser() user: never, @Param('id') id: string, @Body() body: UpdateTaskDto) {
+  update(
+    @CurrentUser() user: never,
+    @Param('id') id: string,
+    @Body() body: UpdateTaskDto,
+  ) {
     return this.tasksService.updateTask(user, id, body);
   }
 
@@ -116,7 +117,11 @@ export class TasksController {
 
   @Post(':id/comments')
   @RequirePermissions(Permission.TaskUpdate)
-  addComment(@CurrentUser() user: never, @Param('id') id: string, @Body() body: AddTaskCommentDto) {
+  addComment(
+    @CurrentUser() user: never,
+    @Param('id') id: string,
+    @Body() body: AddTaskCommentDto,
+  ) {
     return this.tasksService.addComment(user, id, body);
   }
 }

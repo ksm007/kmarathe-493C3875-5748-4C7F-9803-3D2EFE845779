@@ -25,7 +25,9 @@ export interface AttachmentStorageAdapter {
    * for local disk, Content-Length response header for remote backends). Returns
    * null when the upstream length is not reliably available.
    */
-  openReadStream(storageKey: string): Promise<{ stream: Readable; byteLength: number | null }>;
+  openReadStream(
+    storageKey: string,
+  ): Promise<{ stream: Readable; byteLength: number | null }>;
 
   /** Delete the stored attachment. Missing objects are treated as already removed. */
   remove(storageKey: string): Promise<void>;

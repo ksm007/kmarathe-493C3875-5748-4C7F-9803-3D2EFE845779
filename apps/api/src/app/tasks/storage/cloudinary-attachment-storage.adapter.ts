@@ -60,9 +60,7 @@ export interface CloudinaryAdapterOptions {
  * streaming content behind its permission check (assets are stored as
  * `authenticated`, so they are never publicly addressable either).
  */
-export class CloudinaryAttachmentStorageAdapter
-  implements AttachmentStorageAdapter
-{
+export class CloudinaryAttachmentStorageAdapter implements AttachmentStorageAdapter {
   private readonly resourceType: string;
   private readonly deliveryType: string;
   private readonly fetchStream: FetchStream;
@@ -103,7 +101,9 @@ export class CloudinaryAttachmentStorageAdapter
     return passthrough;
   }
 
-  async openReadStream(storageKey: string): Promise<{ stream: Readable; byteLength: number | null }> {
+  async openReadStream(
+    storageKey: string,
+  ): Promise<{ stream: Readable; byteLength: number | null }> {
     const url = this.cloudinary.url(this.publicIdFor(storageKey), {
       resource_type: this.resourceType,
       type: this.deliveryType,
@@ -129,9 +129,7 @@ export class CloudinaryAttachmentStorageAdapter
     // 'ok' is success; 'not found' means already gone - both are fine, matching
     // the local-disk adapter's idempotent ENOENT handling. Anything else fails.
     if (result && result !== 'ok' && result !== 'not found') {
-      throw new Error(
-        `Cloudinary delete failed for ${storageKey}: ${result}`,
-      );
+      throw new Error(`Cloudinary delete failed for ${storageKey}: ${result}`);
     }
   }
 
@@ -164,7 +162,9 @@ export function fetchWithRedirects(
       if (status >= 300 && status < 400) {
         response.resume();
         if (hops >= MAX_REDIRECTS) {
-          reject(new Error(`Cloudinary fetch exceeded ${MAX_REDIRECTS} redirects`));
+          reject(
+            new Error(`Cloudinary fetch exceeded ${MAX_REDIRECTS} redirects`),
+          );
           return;
         }
         const location = response.headers['location'] as string | undefined;
@@ -176,18 +176,31 @@ export function fetchWithRedirects(
         try {
           redirectUrl = new URL(location, url);
         } catch {
-          reject(new Error(`Cloudinary redirect has invalid Location: ${location}`));
+          reject(
+            new Error(`Cloudinary redirect has invalid Location: ${location}`),
+          );
           return;
         }
         if (redirectUrl.protocol !== 'https:') {
-          reject(new Error('Cloudinary redirect rejected: non-https scheme in Location'));
+          reject(
+            new Error(
+              'Cloudinary redirect rejected: non-https scheme in Location',
+            ),
+          );
           return;
         }
         if (!CLOUDINARY_HOST_RE.test(redirectUrl.hostname)) {
-          reject(new Error(`Cloudinary redirect rejected: off-domain host ${redirectUrl.hostname}`));
+          reject(
+            new Error(
+              `Cloudinary redirect rejected: off-domain host ${redirectUrl.hostname}`,
+            ),
+          );
           return;
         }
-        fetchWithRedirects(redirectUrl.href, hops + 1, get).then(resolve, reject);
+        fetchWithRedirects(redirectUrl.href, hops + 1, get).then(
+          resolve,
+          reject,
+        );
         return;
       }
 

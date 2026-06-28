@@ -2,14 +2,12 @@ import {
   AddTaskCommentRequest,
   AcceptanceCriteriaInput,
   IssueType,
-  Permission,
   Role,
   SprintState,
   Task,
   TaskActivity,
   TaskActivityType,
   TaskAttachment,
-  TaskCategory,
   TaskDetail,
   TaskPriority,
   TaskQuery,
@@ -691,7 +689,9 @@ export class TasksService {
       throw new NotFoundException('Attachment not found');
     }
 
-    const { stream, byteLength } = await this.attachmentStorage.openReadStream(attachment.storageKey);
+    const { stream, byteLength } = await this.attachmentStorage.openReadStream(
+      attachment.storageKey,
+    );
     return {
       attachment: this.toTaskAttachment(attachment),
       stream,
@@ -790,7 +790,7 @@ export class TasksService {
       `Top similarities: ${topSimilarities.map((s) => `${s.taskId}=${s.similarity.toFixed(3)}`).join(', ')}`,
     );
 
-    const duplicateCandidates = similarities.filter((s) => s.similarity > 0.80);
+    const duplicateCandidates = similarities.filter((s) => s.similarity > 0.8);
 
     if (duplicateCandidates.length === 0) {
       return [];
@@ -880,7 +880,7 @@ export class TasksService {
     // Verify the assignee is a member of the target organization
     const isMember = await this.tasksRepository.manager.exists(
       (await import('../database/entities/membership.entity')).MembershipEntity,
-      { where: { userId: requestedAssigneeId, organizationId } }
+      { where: { userId: requestedAssigneeId, organizationId } },
     );
     if (!isMember) {
       throw new ForbiddenException('Assignee is outside your scope');
@@ -1068,7 +1068,9 @@ export class TasksService {
 
   private assertImageAttachment(file: UploadedTaskAttachmentFile) {
     if (!ALLOWED_ATTACHMENT_TYPES.has(file.mimetype)) {
-      throw new BadRequestException('Only PNG, JPEG, and WebP images are supported');
+      throw new BadRequestException(
+        'Only PNG, JPEG, and WebP images are supported',
+      );
     }
     if (file.size <= 0) {
       throw new BadRequestException('Attachment file is empty');
@@ -1089,7 +1091,9 @@ export class TasksService {
       .getRawOne<{ bytes: string }>();
     const usedBytes = Number(result?.bytes ?? 0);
     if (usedBytes + incomingBytes > FREE_PLAN_ATTACHMENT_BYTES) {
-      throw new BadRequestException('Organization attachment storage limit reached');
+      throw new BadRequestException(
+        'Organization attachment storage limit reached',
+      );
     }
   }
 
@@ -1176,7 +1180,8 @@ export class TasksService {
 
   private extractTitleDescription(document: string): string {
     const title = document.match(/\[Title\]:\s*(.+)/)?.[1]?.trim() ?? '';
-    const rawDesc = document.match(/\[Description\]:\s*(.+)/)?.[1]?.trim() ?? '';
+    const rawDesc =
+      document.match(/\[Description\]:\s*(.+)/)?.[1]?.trim() ?? '';
     const description = rawDesc === 'None' ? '' : rawDesc;
     return `${title} ${description}`.trim();
   }

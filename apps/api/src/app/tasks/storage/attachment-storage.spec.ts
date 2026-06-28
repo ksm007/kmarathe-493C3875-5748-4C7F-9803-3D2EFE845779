@@ -100,13 +100,17 @@ describe('CloudinaryAttachmentStorageAdapter (behavior)', () => {
     uploadStream = { end: jest.fn(), on: jest.fn() };
     upload_stream = jest.fn().mockReturnValue(uploadStream);
     destroy = jest.fn();
-    url = jest.fn().mockReturnValue('https://res.cloudinary.com/demo/signed.png');
+    url = jest
+      .fn()
+      .mockReturnValue('https://res.cloudinary.com/demo/signed.png');
     fetchStream = jest.fn();
     cloudinary = {
       uploader: { upload_stream, destroy },
       url,
     } as unknown as CloudinaryPort;
-    adapter = new CloudinaryAttachmentStorageAdapter(cloudinary, { fetchStream });
+    adapter = new CloudinaryAttachmentStorageAdapter(cloudinary, {
+      fetchStream,
+    });
   });
 
   it('save uploads the buffer under the extension-stripped public id', async () => {
@@ -196,7 +200,9 @@ describe('CloudinaryAttachmentStorageAdapter (behavior)', () => {
   it('openReadStream rejects when the fetch fails', async () => {
     fetchStream.mockRejectedValueOnce(new Error('cloudinary down'));
 
-    await expect(adapter.openReadStream(storageKey)).rejects.toThrow('cloudinary down');
+    await expect(adapter.openReadStream(storageKey)).rejects.toThrow(
+      'cloudinary down',
+    );
   });
 
   it('remove destroys the asset by public id', async () => {
@@ -256,57 +262,109 @@ describe('fetchWithRedirects (https redirect logic)', () => {
     return (_url, cb) => {
       const resp = responses[i++];
       process.nextTick(() => cb(resp));
-      return { on: (_e: string, _cb: (e: Error) => void) => ({}) };
+      return { on: () => ({}) };
     };
   }
 
   it('returns stream and byteLength on a direct 200', async () => {
-    const r = fakeResponse({ statusCode: 200, headers: { 'content-length': '42' }, body: 'hello' });
-    const { stream, byteLength } = await fetchWithRedirects('https://res.cloudinary.com/img.jpg', 0, makeGetFn([r]));
+    const r = fakeResponse({
+      statusCode: 200,
+      headers: { 'content-length': '42' },
+      body: 'hello',
+    });
+    const { stream, byteLength } = await fetchWithRedirects(
+      'https://res.cloudinary.com/img.jpg',
+      0,
+      makeGetFn([r]),
+    );
     expect(byteLength).toBe(42);
     await expect(readAll(stream)).resolves.toBe('hello');
   });
 
   it('follows a single safe redirect within cloudinary.com', async () => {
-    const redirect = fakeResponse({ statusCode: 302, headers: { location: 'https://res.cloudinary.com/img2.jpg' } });
-    const body = fakeResponse({ statusCode: 200, headers: { 'content-length': '10' }, body: 'bytes-here' });
-    const { stream, byteLength } = await fetchWithRedirects('https://cdn.cloudinary.com/img.jpg', 0, makeGetFn([redirect, body]));
+    const redirect = fakeResponse({
+      statusCode: 302,
+      headers: { location: 'https://res.cloudinary.com/img2.jpg' },
+    });
+    const body = fakeResponse({
+      statusCode: 200,
+      headers: { 'content-length': '10' },
+      body: 'bytes-here',
+    });
+    const { stream, byteLength } = await fetchWithRedirects(
+      'https://cdn.cloudinary.com/img.jpg',
+      0,
+      makeGetFn([redirect, body]),
+    );
     expect(byteLength).toBe(10);
     await expect(readAll(stream)).resolves.toBe('bytes-here');
   });
 
   it('rejects a redirect to an off-domain host', async () => {
-    const r = fakeResponse({ statusCode: 302, headers: { location: 'https://evil.com/steal.jpg' } });
+    const r = fakeResponse({
+      statusCode: 302,
+      headers: { location: 'https://evil.com/steal.jpg' },
+    });
     await expect(
-      fetchWithRedirects('https://res.cloudinary.com/img.jpg', 0, makeGetFn([r])),
+      fetchWithRedirects(
+        'https://res.cloudinary.com/img.jpg',
+        0,
+        makeGetFn([r]),
+      ),
     ).rejects.toThrow(/off-domain host/);
   });
 
   it('rejects a redirect to a non-https URL', async () => {
-    const r = fakeResponse({ statusCode: 302, headers: { location: 'http://res.cloudinary.com/img.jpg' } });
+    const r = fakeResponse({
+      statusCode: 302,
+      headers: { location: 'http://res.cloudinary.com/img.jpg' },
+    });
     await expect(
-      fetchWithRedirects('https://res.cloudinary.com/img.jpg', 0, makeGetFn([r])),
+      fetchWithRedirects(
+        'https://res.cloudinary.com/img.jpg',
+        0,
+        makeGetFn([r]),
+      ),
     ).rejects.toThrow(/non-https scheme/);
   });
 
   it('rejects when the redirect hop cap is exceeded', async () => {
     const redirects = Array.from({ length: 6 }, () =>
-      fakeResponse({ statusCode: 302, headers: { location: 'https://res.cloudinary.com/img.jpg' } }),
+      fakeResponse({
+        statusCode: 302,
+        headers: { location: 'https://res.cloudinary.com/img.jpg' },
+      }),
     );
     await expect(
-      fetchWithRedirects('https://res.cloudinary.com/img.jpg', 0, makeGetFn(redirects)),
+      fetchWithRedirects(
+        'https://res.cloudinary.com/img.jpg',
+        0,
+        makeGetFn(redirects),
+      ),
     ).rejects.toThrow(/exceeded.*redirect/);
   });
 
   it('returns null byteLength when Content-Length is malformed', async () => {
-    const r = fakeResponse({ statusCode: 200, headers: { 'content-length': 'chunked' }, body: 'data' });
-    const { byteLength } = await fetchWithRedirects('https://res.cloudinary.com/img.jpg', 0, makeGetFn([r]));
+    const r = fakeResponse({
+      statusCode: 200,
+      headers: { 'content-length': 'chunked' },
+      body: 'data',
+    });
+    const { byteLength } = await fetchWithRedirects(
+      'https://res.cloudinary.com/img.jpg',
+      0,
+      makeGetFn([r]),
+    );
     expect(byteLength).toBeNull();
   });
 
   it('returns null byteLength when Content-Length is absent', async () => {
     const r = fakeResponse({ statusCode: 200, body: 'data' });
-    const { byteLength } = await fetchWithRedirects('https://res.cloudinary.com/img.jpg', 0, makeGetFn([r]));
+    const { byteLength } = await fetchWithRedirects(
+      'https://res.cloudinary.com/img.jpg',
+      0,
+      makeGetFn([r]),
+    );
     expect(byteLength).toBeNull();
   });
 });
