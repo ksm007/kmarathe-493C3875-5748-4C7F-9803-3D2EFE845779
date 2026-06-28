@@ -51,7 +51,7 @@ npm run dev:dashboard  # http://localhost:4200  (Angular reference, read-only du
 
 - Kanban board with **Board / List / Analytics** view modes
 - CDK drag-and-drop for reordering and moving tasks between columns
-- Filters: search, category, sort — all debounced and synced to NgRx store
+- Filters: search, category, sprint, sort — all debounced and synced to NgRx store
 - Global loading bar + board overlay + disabled buttons during every mutation
 - Keyboard shortcuts: `C` create · `/` focus search · `1/2/3` switch views · `Esc` close modal
 
@@ -76,8 +76,9 @@ Natural-language interface grounded on the user's own task corpus.
 - **Pending actions**: mutations require a Confirm step before executing
 - **Streaming**: SSE-based token streaming with live typing indicator
 - **Prompt injection detection** and canary token output guardrail
-- **D3 similarity chart** in the sidebar showing match scores for the latest cited tasks
-- **Source citation badges** on AI responses link to `/tasks/$id` — clicking navigates directly to the task detail page
+- **D3 similarity chart** in the sidebar showing match scores for the latest cited tasks (Angular dashboard); the React web app shows similarity percentages inline on source citation badges
+- **Source citation badges** on AI responses link to `/tasks/$id` and display the match percentage — clicking navigates directly to the task detail page
+- **Quick-actions sidebar** (React web app): preset prompts for common queries and a tips panel alongside the chat input
 
 ### AI Standup Report
 
@@ -108,6 +109,7 @@ Every protected action is recorded — including denied attempts and duplicate b
 ### Team Management
 
 Admin/Owner can invite new members, assign roles, and remove users from their organisation scope.
+Only Owners can remove other Owners — Admins are blocked from removing Owner-role members.
 
 ---
 
@@ -135,7 +137,10 @@ Auth state is stored in `localStorage` (bearer token); routes that depend on the
 - **Route layouts**: `_authed` (redirects to `/login` when no session), `_authed/_admin` (owner/admin only — redirects viewers to `/tasks`), `_authed/tasks/$id` (deep-linkable task detail — closes via `router.history.back()` with fallback to `/tasks`)
 - **`useCurrentUser()`**: reads the signed-in user via the `['me']` TanStack Query cache key; keeps the org switcher reactive
 - **Route loaders**: use `queryClient.prefetchQuery` to warm the cache without throwing on fetch failure
-- **Feature modules**: `features/auth` (login/signup landing), `features/tasks` (board, task form, task detail)
+- **`/` route**: public marketing landing page (Stride branding, signed-out users); signed-in users are redirected to `/tasks`
+- **Feature modules**: `features/auth` (login/signup with confirm-password validation), `features/tasks` (board/list/analytics views, sprint filter, interactive AC toggle, task form, task detail)
+- **AI chat page**: quick-actions sidebar with preset prompts, tips panel, source badges with inline similarity percentages
+- **RBAC enforcement**: Admins are blocked from removing Owner-role members on the team page
 - **Shared lib**: `lib/api-client` (typed API wrappers), `lib/auth-storage` (localStorage session), `lib/query-client` (shared singleton), `lib/format` (error/bytes/metadata formatters)
 
 ### Angular Reference Frontend (`apps/dashboard`)
