@@ -229,6 +229,12 @@ erDiagram
 | `POST` | `/api/auth/register` | Creates account + returns JWT |
 | `GET` | `/api/auth/me` | Current user from JWT |
 
+The public auth and invitation endpoints (`login`, `register`, `forgot-password`,
+`reset-password`, invite create/accept) are rate limited per IP and return `429`
+once the window is exceeded. Login additionally locks an account for
+`LOGIN_LOCKOUT_SECONDS` after `LOGIN_MAX_FAILED_ATTEMPTS` consecutive failures,
+also returning `429`; a successful login clears the counter.
+
 ### Tasks
 | Method | Path | Description |
 |---|---|---|
@@ -318,7 +324,18 @@ PORT=4000
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-4o-mini
 EMBEDDING_MODEL=text-embedding-3-small
+
+# Optional — auth rate limiting & brute-force protection (defaults shown)
+AUTH_RATE_LIMIT_TTL_SECONDS=60    # per-IP window on auth + invite routes
+AUTH_RATE_LIMIT_MAX=10            # max requests per IP per window
+LOGIN_MAX_FAILED_ATTEMPTS=5       # failed logins per account before lockout
+LOGIN_LOCKOUT_SECONDS=900         # account lockout duration
+TRUST_PROXY=1                     # proxy hops to trust for the real client IP
 ```
+
+> Behind a reverse proxy, keep `TRUST_PROXY=1` (the default) so per-IP rate
+> limiting keys on the real client IP from `X-Forwarded-For` rather than the
+> proxy's address. See the Nginx config below for the matching header.
 
 **Nginx — serve dashboard SPA + proxy API:**
 ```nginx
@@ -335,6 +352,7 @@ location /api/ {
     proxy_read_timeout 300s;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;  # real client IP for rate limiting
 }
 ```
 
