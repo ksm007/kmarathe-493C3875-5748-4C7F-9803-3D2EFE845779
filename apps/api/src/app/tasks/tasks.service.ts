@@ -482,28 +482,6 @@ export class TasksService {
     }
 
     if (
-      payload.assigneeId !== undefined &&
-      previousAssigneeId !== task.assigneeId
-    ) {
-      const hydratedForAssignee = await this.loadTaskWithRelations(task.id);
-      const newAssigneeName = hydratedForAssignee?.assignee?.fullName ?? null;
-      await this.recordActivity(
-        task,
-        user,
-        TaskActivityType.AssigneeChanged,
-        task.assigneeId
-          ? `Assignee changed to ${newAssigneeName ?? task.assigneeId}`
-          : `Assignee removed`,
-        {
-          from: previousAssigneeId,
-          fromName: previousAssigneeName,
-          to: task.assigneeId,
-          toName: newAssigneeName,
-        },
-      );
-    }
-
-    if (
       payload.storyPoints !== undefined &&
       previousStoryPoints !== task.storyPoints
     ) {
@@ -524,6 +502,27 @@ export class TasksService {
     const hydratedTask = await this.loadTaskWithRelations(task.id);
     if (!hydratedTask) {
       throw new NotFoundException('Task not found after update');
+    }
+
+    if (
+      payload.assigneeId !== undefined &&
+      previousAssigneeId !== task.assigneeId
+    ) {
+      const newAssigneeName = hydratedTask.assignee?.fullName ?? null;
+      await this.recordActivity(
+        task,
+        user,
+        TaskActivityType.AssigneeChanged,
+        task.assigneeId
+          ? `Assignee changed to ${newAssigneeName ?? task.assigneeId}`
+          : `Assignee removed`,
+        {
+          from: previousAssigneeId,
+          fromName: previousAssigneeName,
+          to: task.assigneeId,
+          toName: newAssigneeName,
+        },
+      );
     }
 
     await this.auditService.log({
