@@ -476,7 +476,15 @@ function PriorityBar({
       <Text size="sm" w={60} style={{ flexShrink: 0 }}>
         {label}
       </Text>
-      <Box style={{ flex: 1, background: 'var(--mantine-color-gray-1)', borderRadius: 4, height: 20, overflow: 'hidden' }}>
+      <Box
+        style={{
+          flex: 1,
+          background: 'var(--mantine-color-gray-1)',
+          borderRadius: 4,
+          height: 20,
+          overflow: 'hidden',
+        }}
+      >
         <Box
           style={{
             width: `${pct}%`,
@@ -619,7 +627,13 @@ function TaskAnalyticsView({ tasks }: { tasks: Task[] }) {
           <Text fw={700}>By Category</Text>
           <Group gap="md">
             {byCategory.map((c) => (
-              <Paper key={c.label} withBorder radius="md" p="md" style={{ flex: 1, minWidth: 100 }}>
+              <Paper
+                key={c.label}
+                withBorder
+                radius="md"
+                p="md"
+                style={{ flex: 1, minWidth: 100 }}
+              >
                 <Stack gap={4} align="center">
                   <Text size="sm" c="dimmed">
                     {c.label}

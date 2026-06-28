@@ -171,7 +171,6 @@ export function AuthLanding({ mode }: { mode: AuthMode }) {
     return () => {
       window.google?.accounts.id.cancel();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, GOOGLE_CLIENT_ID]);
 
   return (

@@ -20,7 +20,14 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, createFileRoute } from '@tanstack/react-router';
 import type { ChatMessage, PendingChatAction } from '@nx-temp/data';
-import { Check, Lightbulb, MessageSquarePlus, Sparkles, X, Zap } from 'lucide-react';
+import {
+  Check,
+  Lightbulb,
+  MessageSquarePlus,
+  Sparkles,
+  X,
+  Zap,
+} from 'lucide-react';
 import { apiClient } from '~/lib/api-client';
 import { getStoredSession } from '~/lib/auth-storage';
 import { formatError } from '~/lib/format';
@@ -100,10 +107,22 @@ function ChatRoute() {
     );
 
   const quickActions = [
-    { label: 'List all open tasks', prompt: 'List all tasks that are not yet done.' },
-    { label: 'Summarize this sprint', prompt: 'Summarize the active sprint: tasks, progress, and blockers.' },
-    { label: 'High priority tasks', prompt: 'Which tasks have high priority and are not yet done?' },
-    { label: 'Overdue tasks', prompt: 'Are there any tasks with a due date that has already passed?' },
+    {
+      label: 'List all open tasks',
+      prompt: 'List all tasks that are not yet done.',
+    },
+    {
+      label: 'Summarize this sprint',
+      prompt: 'Summarize the active sprint: tasks, progress, and blockers.',
+    },
+    {
+      label: 'High priority tasks',
+      prompt: 'Which tasks have high priority and are not yet done?',
+    },
+    {
+      label: 'Overdue tasks',
+      prompt: 'Are there any tasks with a due date that has already passed?',
+    },
     { label: 'Create a task', prompt: 'Create a new task: ' },
     { label: 'Assign task', prompt: 'Assign task "" to ' },
   ];
@@ -119,7 +138,11 @@ function ChatRoute() {
         </Box>
       </Group>
 
-      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md" style={{ alignItems: 'start' }}>
+      <SimpleGrid
+        cols={{ base: 1, md: 3 }}
+        spacing="md"
+        style={{ alignItems: 'start' }}
+      >
         <Box style={{ gridColumn: 'span 2' }}>
           <Stack gap="md">
             <Paper withBorder radius="md" p="md">
@@ -139,7 +162,9 @@ function ChatRoute() {
                     />
                   ))
                 ) : (
-                  <Text c="dimmed">No chat history. Use quick actions or type a question below.</Text>
+                  <Text c="dimmed">
+                    No chat history. Use quick actions or type a question below.
+                  </Text>
                 )}
                 {streamedAnswer ? (
                   <Paper withBorder radius="md" p="sm" className="task-card">
@@ -175,7 +200,8 @@ function ChatRoute() {
                   />
                   <Group justify="space-between" align="center">
                     <Text size="xs" c="dimmed">
-                      The AI can read your tasks and propose changes for your review.
+                      The AI can read your tasks and propose changes for your
+                      review.
                     </Text>
                     <Button
                       leftSection={<Sparkles size={16} />}

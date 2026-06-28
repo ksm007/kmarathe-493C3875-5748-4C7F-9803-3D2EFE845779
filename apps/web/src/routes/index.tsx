@@ -200,14 +200,17 @@ function LandingPage() {
               <Title
                 order={1}
                 ta="center"
-                style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', lineHeight: 1.1 }}
+                style={{
+                  fontSize: 'clamp(2rem, 5vw, 3.5rem)',
+                  lineHeight: 1.1,
+                }}
               >
                 Plan sprints, manage issues, and keep tenant data separated.
               </Title>
               <Text size="xl" c="dimmed" ta="center" lh={1.7} maw={600}>
-                Stride gives each client organization its own workspace -
-                tasks, sprints, team, and AI chat - while you manage them all
-                from a single login.
+                Stride gives each client organization its own workspace - tasks,
+                sprints, team, and AI chat - while you manage them all from a
+                single login.
               </Text>
               <Group gap="md">
                 <Button
@@ -343,8 +346,7 @@ function LandingPage() {
       {/* CTA */}
       <Box
         style={{
-          background:
-            'linear-gradient(135deg, #102033 0%, #1a3a5c 100%)',
+          background: 'linear-gradient(135deg, #102033 0%, #1a3a5c 100%)',
           color: '#fff',
         }}
         py={80}
