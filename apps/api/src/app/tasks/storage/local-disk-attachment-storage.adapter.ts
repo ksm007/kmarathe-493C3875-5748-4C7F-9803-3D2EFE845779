@@ -1,5 +1,5 @@
 import { createReadStream } from 'fs';
-import { mkdir, unlink, writeFile } from 'fs/promises';
+import { mkdir, stat, unlink, writeFile } from 'fs/promises';
 import { dirname, resolve } from 'path';
 import { Readable } from 'stream';
 import { AttachmentStorageAdapter } from './attachment-storage.adapter';
@@ -23,6 +23,12 @@ export class LocalDiskAttachmentStorageAdapter implements AttachmentStorageAdapt
 
   createReadStream(storageKey: string): Readable {
     return createReadStream(this.pathFor(storageKey));
+  }
+
+  async openReadStream(storageKey: string): Promise<{ stream: Readable; byteLength: number | null }> {
+    const path = this.pathFor(storageKey);
+    const { size } = await stat(path);
+    return { stream: createReadStream(path), byteLength: size };
   }
 
   async remove(storageKey: string): Promise<void> {

@@ -34,8 +34,14 @@ export interface CloudinaryPort {
   url(publicId: string, options?: Record<string, unknown>): string;
 }
 
-/** Opens a readable byte stream for a (signed) delivery URL. */
-export type FetchStream = (url: string) => Promise<Readable>;
+/** Stream and upstream byte length returned by a fetch. */
+export interface FetchResult {
+  stream: Readable;
+  byteLength: number | null;
+}
+
+/** Opens a readable byte stream for a (signed) delivery URL, alongside its byte length. */
+export type FetchStream = (url: string) => Promise<FetchResult>;
 
 export interface CloudinaryAdapterOptions {
   /** Cloudinary resource type for stored attachments (images only here). */
@@ -86,23 +92,28 @@ export class CloudinaryAttachmentStorageAdapter
   }
 
   createReadStream(storageKey: string): Readable {
-    // The seam exposes a synchronous stream, but Cloudinary delivery is an
-    // async HTTP fetch, so bridge through a PassThrough and surface failures
-    // as stream errors (matching the other adapters' contract).
     const passthrough = new PassThrough();
+    this.openReadStream(storageKey)
+      .then(({ stream }) => {
+        stream.on('error', (error) => passthrough.destroy(error));
+        stream.pipe(passthrough);
+      })
+      .catch((error) => passthrough.destroy(error as Error));
+    return passthrough;
+  }
+
+  async openReadStream(storageKey: string): Promise<{ stream: Readable; byteLength: number | null }> {
     const url = this.cloudinary.url(this.publicIdFor(storageKey), {
       resource_type: this.resourceType,
       type: this.deliveryType,
       secure: true,
       sign_url: true,
     });
-    this.fetchStream(url)
-      .then((source) => {
-        source.on('error', (error) => passthrough.destroy(error));
-        source.pipe(passthrough);
-      })
-      .catch((error) => passthrough.destroy(error as Error));
-    return passthrough;
+    const { stream: source, byteLength } = await this.fetchStream(url);
+    const passthrough = new PassThrough();
+    source.on('error', (error) => passthrough.destroy(error));
+    source.pipe(passthrough);
+    return { stream: passthrough, byteLength };
   }
 
   async remove(storageKey: string): Promise<void> {
@@ -132,7 +143,7 @@ export class CloudinaryAttachmentStorageAdapter
   }
 }
 
-function defaultFetchStream(url: string): Promise<Readable> {
+function defaultFetchStream(url: string): Promise<FetchResult> {
   return new Promise((resolve, reject) => {
     httpsGet(url, (response) => {
       const status = response.statusCode ?? 0;
@@ -143,7 +154,9 @@ function defaultFetchStream(url: string): Promise<Readable> {
         );
         return;
       }
-      resolve(response);
+      const rawLength = response.headers['content-length'];
+      const byteLength = rawLength ? parseInt(rawLength, 10) : null;
+      resolve({ stream: response, byteLength });
     }).on('error', reject);
   });
 }

@@ -691,9 +691,11 @@ export class TasksService {
       throw new NotFoundException('Attachment not found');
     }
 
+    const { stream, byteLength } = await this.attachmentStorage.openReadStream(attachment.storageKey);
     return {
       attachment: this.toTaskAttachment(attachment),
-      stream: this.attachmentStorage.createReadStream(attachment.storageKey),
+      stream,
+      byteLength,
     };
   }
 

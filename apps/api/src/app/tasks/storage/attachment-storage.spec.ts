@@ -140,7 +140,7 @@ describe('CloudinaryAttachmentStorageAdapter (behavior)', () => {
 
   it('createReadStream signs a private URL and proxies the bytes through', async () => {
     const source = new PassThrough();
-    fetchStream.mockResolvedValueOnce(source);
+    fetchStream.mockResolvedValueOnce({ stream: source, byteLength: 11 });
 
     const stream = adapter.createReadStream(storageKey);
 
@@ -166,6 +166,35 @@ describe('CloudinaryAttachmentStorageAdapter (behavior)', () => {
     const stream = adapter.createReadStream(storageKey);
 
     await expect(readAll(stream)).rejects.toThrow('cloudinary down');
+  });
+
+  it('openReadStream returns the stream and the upstream byteLength', async () => {
+    const source = new PassThrough();
+    fetchStream.mockResolvedValueOnce({ stream: source, byteLength: 11 });
+
+    const { stream, byteLength } = await adapter.openReadStream(storageKey);
+
+    expect(byteLength).toBe(11);
+    expect(fetchStream).toHaveBeenCalledWith(
+      'https://res.cloudinary.com/demo/signed.png',
+    );
+    source.end('object-bytes');
+    await expect(readAll(stream)).resolves.toBe('object-bytes');
+  });
+
+  it('openReadStream returns null byteLength when the upstream omits Content-Length', async () => {
+    const source = new PassThrough();
+    fetchStream.mockResolvedValueOnce({ stream: source, byteLength: null });
+
+    const { byteLength } = await adapter.openReadStream(storageKey);
+
+    expect(byteLength).toBeNull();
+  });
+
+  it('openReadStream rejects when the fetch fails', async () => {
+    fetchStream.mockRejectedValueOnce(new Error('cloudinary down'));
+
+    await expect(adapter.openReadStream(storageKey)).rejects.toThrow('cloudinary down');
   });
 
   it('remove destroys the asset by public id', async () => {

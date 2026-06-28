@@ -25,6 +25,10 @@ export class AttachmentStorageService implements AttachmentStorageAdapter {
     return this.adapter.createReadStream(storageKey);
   }
 
+  openReadStream(storageKey: string): Promise<{ stream: Readable; byteLength: number | null }> {
+    return this.adapter.openReadStream(storageKey);
+  }
+
   remove(storageKey: string): Promise<void> {
     return this.adapter.remove(storageKey);
   }

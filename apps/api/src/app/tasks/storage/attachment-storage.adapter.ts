@@ -19,6 +19,14 @@ export interface AttachmentStorageAdapter {
    */
   createReadStream(storageKey: string): Readable;
 
+  /**
+   * Open a readable stream and return the upstream byte length alongside it.
+   * The byte length is the actual size of bytes that will be emitted (file stat
+   * for local disk, Content-Length response header for remote backends). Returns
+   * null when the upstream length is not reliably available.
+   */
+  openReadStream(storageKey: string): Promise<{ stream: Readable; byteLength: number | null }>;
+
   /** Delete the stored attachment. Missing objects are treated as already removed. */
   remove(storageKey: string): Promise<void>;
 }
