@@ -65,7 +65,7 @@ Do not replace this with a plain `navigate({ to: '/tasks' })` - that would break
 ## Invitation audit logging (apps/api)
 
 - Three invitation lifecycle events are recorded via `AuditService`:
-  `invitations.create` (actor = inviting user, `allowed=true`, `resourceId=target email`, metadata includes `role` and `targetEmail`);
+  `invitations.create` (actor = inviting user, `allowed=true`, no `resourceId`, metadata includes `role` and `targetEmail`);
   `invitations.accept` on success (actor constructed from the newly-created/existing user + membership + invitation.organization, `allowed=true`, `resourceId=invitation.id`);
   `invitations.accept` on failure - invalid, expired, or already-used token - (actor=null, `allowed=false`, `reason='Invite link is invalid or has expired'`).
 - `create` audit is logged in `InvitationsService.create()` after the invitation email is sent.
