@@ -68,7 +68,7 @@ function ForgotPasswordRoute() {
         </Stack>
       </form>
 
-      <Anchor component={Link} size="sm" to="/">
+      <Anchor component={Link} size="sm" to="/login">
         Remembered your password?
       </Anchor>
     </AuthCard>

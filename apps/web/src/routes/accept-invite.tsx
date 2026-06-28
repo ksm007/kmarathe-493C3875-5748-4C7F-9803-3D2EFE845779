@@ -35,7 +35,7 @@ function AcceptInviteRoute() {
       apiClient.acceptInvitation(payload),
     onSuccess: async (session) => {
       saveSession(session);
-      await navigate({ to: '/' });
+      await navigate({ to: '/tasks' });
     },
   });
 
@@ -102,7 +102,7 @@ function AcceptInviteRoute() {
         </Stack>
       </form>
 
-      <Anchor component={Link} size="sm" to="/">
+      <Anchor component={Link} size="sm" to="/login">
         Already have an account?
       </Anchor>
     </AuthCard>
