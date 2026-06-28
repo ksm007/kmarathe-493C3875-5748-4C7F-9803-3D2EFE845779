@@ -36,6 +36,8 @@ export interface AppEnv {
   CLOUDINARY_CLOUD_NAME: string;
   CLOUDINARY_API_KEY: string;
   CLOUDINARY_API_SECRET: string;
+  // Google sign-in
+  GOOGLE_CLIENT_ID: string;
 }
 
 function normalizeTrustProxy(value: unknown): boolean | number | string {
@@ -129,5 +131,6 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
     CLOUDINARY_CLOUD_NAME: String(config.CLOUDINARY_CLOUD_NAME ?? ''),
     CLOUDINARY_API_KEY: String(config.CLOUDINARY_API_KEY ?? ''),
     CLOUDINARY_API_SECRET: String(config.CLOUDINARY_API_SECRET ?? ''),
+    GOOGLE_CLIENT_ID: String(config.GOOGLE_CLIENT_ID ?? ''),
   };
 }

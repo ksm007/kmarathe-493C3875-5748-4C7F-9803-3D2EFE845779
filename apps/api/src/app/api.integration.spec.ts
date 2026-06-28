@@ -9,6 +9,7 @@ import { Role, SprintState, TaskCategory, TaskPriority, TaskStatus } from '@nx-t
 import { AiService } from './ai/ai.service';
 import { AuditService } from './audit/audit.service';
 import { AuthService } from './auth/auth.service';
+import { GoogleVerifierService } from './auth/google-verifier.service';
 import { LoginAttemptService } from './auth/login-attempt.service';
 import { ChatRateLimiterService } from './chat/chat-rate-limiter.service';
 import { ChatService } from './chat/chat.service';
@@ -127,6 +128,10 @@ describe('API integration', () => {
     loginAttemptService = new LoginAttemptService(
       new ConfigService({ LOGIN_MAX_FAILED_ATTEMPTS: 5, LOGIN_LOCKOUT_SECONDS: 900 })
     );
+    const googleVerifier = {
+      verifyIdToken: jest.fn(),
+    } as unknown as GoogleVerifierService;
+
     authService = new AuthService(
       new JwtService({ secret: 'test-secret', signOptions: { expiresIn: '1h' as never } }),
       new ConfigService({ JWT_SECRET: 'test-secret', JWT_EXPIRES_IN: '1h' }),
@@ -136,7 +141,8 @@ describe('API integration', () => {
       membershipsRepository,
       invitationsRepository,
       passwordResetTokensRepository,
-      loginAttemptService
+      loginAttemptService,
+      googleVerifier
     );
     invitationsService = new InvitationsService(authService, emailService, invitationsRepository);
 

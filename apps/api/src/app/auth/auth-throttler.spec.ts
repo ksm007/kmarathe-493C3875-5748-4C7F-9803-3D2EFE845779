@@ -19,6 +19,7 @@ describe('Auth/invite rate limiting (HTTP)', () => {
   const authServiceMock = {
     login: jest.fn().mockResolvedValue({ accessToken: 'token', user: { id: 'u1' } }),
     register: jest.fn().mockResolvedValue({ accessToken: 'token', user: { id: 'u1' } }),
+    googleSignIn: jest.fn().mockResolvedValue({ kind: 'session', accessToken: 'token', user: { id: 'u1' } }),
     forgotPassword: jest.fn().mockResolvedValue(undefined),
     resetPassword: jest.fn().mockResolvedValue(undefined),
     acceptInvitation: jest.fn().mockResolvedValue({ accessToken: 'token', user: { id: 'u1' } }),
@@ -77,6 +78,11 @@ describe('Auth/invite rate limiting (HTTP)', () => {
 
   it('returns 429 once POST /auth/forgot-password exceeds the per-IP limit', async () => {
     const blocked = await flood('/auth/forgot-password', { email: 'a@b.com' }, 204, AUTH_LIMIT);
+    expect(blocked.status).toBe(429);
+  });
+
+  it('returns 429 once POST /auth/google exceeds the per-IP limit', async () => {
+    const blocked = await flood('/auth/google', { idToken: 'fake.google.token' }, 201, AUTH_LIMIT);
     expect(blocked.status).toBe(429);
   });
 

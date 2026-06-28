@@ -50,3 +50,14 @@ Live session/user reads go through `useCurrentUser()` (the `['me']` query), so t
 The `_authed/tasks/$id` route (`apps/web/src/routes/_authed.tasks.$id.tsx`) is a URL-driven deep link for task detail - the URL is bookmarkable and shareable.
 Its close handler calls `router.history.back()` when `window.history.length > 1` so navigating from the AI-chat source badge or a direct link returns the user to the previous page; it falls back to `navigate({ to: '/tasks' })` for cold loads with no prior history.
 Do not replace this with a plain `navigate({ to: '/tasks' })` - that would break back-navigation from the AI-chat page and other entry points.
+
+## Google sign-in (apps/api + apps/web)
+
+- Backend: `POST /auth/google` accepts `{ idToken: string }`. `AuthService.googleSignIn` delegates token verification to `GoogleVerifierService` (`auth/google-verifier.service.ts`), which wraps `google-auth-library`'s `OAuth2Client.verifyIdToken`. Never trust a client-supplied email/profile - only values extracted from the verified token are used.
+- Response is discriminated by `kind`: `{ kind: 'session', accessToken, user }` for users with an org membership, or `{ kind: 'needs-org', email, fullName, hasPendingInvitations }` for users with no membership (ADR 0005). No org or user record is silently created for brand-new identities.
+- Account linking (ADR 0011): if a verified Google email matches an existing password-only account, the `googleId` is persisted on first Google sign-in. Password sign-in continues to work alongside Google sign-in. User is found by `googleId` first, then by email.
+- `GOOGLE_CLIENT_ID` env var is required for the backend (config default `''`, documented in `.env.example`). `VITE_GOOGLE_CLIENT_ID` is the matching Vite-exposed frontend env var; when omitted the Google button is hidden.
+- Frontend: `AuthLanding` (`features/auth/auth-landing.tsx`) loads the Google Identity Services (GIS) script via `useEffect`, calls `google.accounts.id.initialize` + `renderButton`, and on credential response calls `apiClient.googleSignIn`. The `needs-org` response shows a contextual alert without navigating away.
+- Rate limiting: `POST /auth/google` uses the same `auth` throttler as login/register (`@SkipThrottle({ invite: true })`).
+- Tests: `auth/google-auth.spec.ts` covers token verification delegation, account linking, password sign-in coexistence, no-silent-org (ADR 0005), pending invitation detection; `auth/auth-throttler.spec.ts` covers 429 on the Google route. `api.integration.spec.ts` wires a `jest.fn()` stub as `GoogleVerifierService` - adding constructor params to `AuthService` requires updating both specs.
+- `google-auth-library` is in root `package.json` dependencies.

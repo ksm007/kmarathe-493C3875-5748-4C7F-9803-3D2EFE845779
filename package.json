@@ -118,6 +118,7 @@
     "class-validator": "^0.15.1",
     "cloudinary": "^2.10.0",
     "d3": "^7.9.0",
+    "google-auth-library": "^10.9.0",
     "helmet": "^8.1.0",
     "lucide-react": "1.21.0",
     "passport": "^0.7.0",

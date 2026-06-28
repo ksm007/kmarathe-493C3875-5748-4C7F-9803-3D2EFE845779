@@ -5,6 +5,7 @@ import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { GoogleVerifierService } from './google-verifier.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -45,6 +46,7 @@ import {
   controllers: [AuthController],
   providers: [
     AuthService,
+    GoogleVerifierService,
     JwtStrategy,
     LoginAttemptService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },

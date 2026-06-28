@@ -14,6 +14,8 @@ import type {
   CreateTaskRequest,
   CurrentUser,
   ForgotPasswordRequest,
+  GoogleAuthResponse,
+  GoogleSignInRequest,
   InvitationResponse,
   LoginRequest,
   LoginResponse,
@@ -172,6 +174,13 @@ export const apiClient = {
 
   switchOrg(payload: SwitchOrgRequest) {
     return request<LoginResponse>('/auth/switch-org', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  googleSignIn(payload: GoogleSignInRequest) {
+    return request<GoogleAuthResponse>('/auth/google', {
       method: 'POST',
       body: JSON.stringify(payload),
     });

@@ -1,4 +1,4 @@
-import { LoginResponse, Role } from '@nx-temp/data';
+import { GoogleAuthResponse, LoginResponse, Role } from '@nx-temp/data';
 import { AuthenticatedUser } from '@nx-temp/auth';
 import {
   BadRequestException,
@@ -7,6 +7,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { GoogleProfile, GoogleVerifierService } from './google-verifier.service';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -43,7 +44,8 @@ export class AuthService {
     private readonly invitationsRepo: Repository<InvitationEntity>,
     @InjectRepository(PasswordResetTokenEntity)
     private readonly resetTokensRepo: Repository<PasswordResetTokenEntity>,
-    private readonly loginAttempts: LoginAttemptService
+    private readonly loginAttempts: LoginAttemptService,
+    private readonly googleVerifier: GoogleVerifierService
   ) {}
 
   // ── Login ─────────────────────────────────────────────────────────────────
@@ -82,6 +84,55 @@ export class AuthService {
     const accessToken = await this.signToken(user.id, activeMembership.organizationId, activeMembership.role);
 
     return { accessToken, user: this.toCurrentUser(user, activeMembership) };
+  }
+
+  // ── Google sign-in ────────────────────────────────────────────────────────
+
+  async googleSignIn(idToken: string): Promise<GoogleAuthResponse> {
+    const profile = await this.googleVerifier.verifyIdToken(idToken);
+    return this.googleSignInWithProfile(profile);
+  }
+
+  async googleSignInWithProfile(profile: GoogleProfile): Promise<GoogleAuthResponse> {
+    // Find user by googleId first, then fall back to email match.
+    let user = await this.usersRepo
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.memberships', 'membership')
+      .leftJoinAndSelect('membership.organization', 'org')
+      .where('user.googleId = :googleId', { googleId: profile.googleId })
+      .getOne();
+
+    if (!user) {
+      user = await this.usersRepo
+        .createQueryBuilder('user')
+        .leftJoinAndSelect('user.memberships', 'membership')
+        .leftJoinAndSelect('membership.organization', 'org')
+        .where('LOWER(user.email) = LOWER(:email)', { email: profile.email })
+        .getOne();
+    }
+
+    if (user) {
+      // Persist googleId if this is the first Google sign-in for an existing account.
+      if (!user.googleId) {
+        await this.usersRepo.update(user.id, { googleId: profile.googleId });
+        user.googleId = profile.googleId;
+      }
+
+      if (user.memberships.length > 0) {
+        const activeMembership = user.memberships[0];
+        const accessToken = await this.signToken(user.id, activeMembership.organizationId, activeMembership.role);
+        return { kind: 'session', accessToken, user: this.toCurrentUser(user, activeMembership) };
+      }
+
+      // User exists but has no org - per ADR 0005 do not silently create one.
+      const hasPendingInvitations = await this.hasPendingInvitations(user.email);
+      return { kind: 'needs-org', email: user.email, fullName: user.fullName, hasPendingInvitations };
+    }
+
+    // Brand-new Google identity with no account in the system.
+    // Per ADR 0005: no silent org creation - route to explicit signup or invitation acceptance.
+    const hasPendingInvitations = await this.hasPendingInvitations(profile.email);
+    return { kind: 'needs-org', email: profile.email, fullName: profile.fullName, hasPendingInvitations };
   }
 
   // ── Register ──────────────────────────────────────────────────────────────
@@ -321,6 +372,16 @@ export class AuthService {
     if (usedSeats >= FREE_PLAN_SEAT_LIMIT) {
       throw new ConflictException(`Organization has reached the ${FREE_PLAN_SEAT_LIMIT}-seat free plan limit`);
     }
+  }
+
+  private async hasPendingInvitations(email: string): Promise<boolean> {
+    const count = await this.invitationsRepo
+      .createQueryBuilder('inv')
+      .where('LOWER(inv.email) = LOWER(:email)', { email })
+      .andWhere('inv."acceptedAt" IS NULL')
+      .andWhere('inv."expiresAt" > NOW()')
+      .getCount();
+    return count > 0;
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

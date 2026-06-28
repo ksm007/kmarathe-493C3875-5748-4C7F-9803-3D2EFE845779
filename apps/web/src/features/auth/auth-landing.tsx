@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
   Button,
   Center,
   Container,
+  Divider,
   Group,
   Paper,
   PasswordInput,
@@ -35,6 +36,24 @@ import { saveSession } from '~/lib/auth-storage';
 
 export type AuthMode = 'login' | 'signup';
 
+// VITE_GOOGLE_CLIENT_ID must be set to enable the Google sign-in button.
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+
+// Google Identity Services type shim (the library is loaded via script tag).
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: { client_id: string; callback: (response: { credential: string }) => void }) => void;
+          renderButton: (parent: HTMLElement, options: object) => void;
+          cancel: () => void;
+        };
+      };
+    };
+  }
+}
+
 /**
  * Two-panel auth landing shared by the `/login` and `/signup` routes. The
  * segmented control navigates between the two routes rather than toggling local
@@ -42,6 +61,8 @@ export type AuthMode = 'login' | 'signup';
  */
 export function AuthLanding({ mode }: { mode: AuthMode }) {
   const navigate = useNavigate();
+  const googleButtonRef = useRef<HTMLDivElement>(null);
+  const [googleError, setGoogleError] = useState<string | null>(null);
   const [loginForm, setLoginForm] = useState<LoginRequest>({
     email: '',
     password: '',
@@ -69,6 +90,27 @@ export function AuthLanding({ mode }: { mode: AuthMode }) {
     },
   });
 
+  const googleSignInMutation = useMutation({
+    mutationFn: apiClient.googleSignIn,
+    onSuccess: async (result) => {
+      if (result.kind === 'session') {
+        saveSession({ accessToken: result.accessToken, user: result.user });
+        await navigate({ to: '/tasks' });
+      } else {
+        // kind === 'needs-org': Google identity verified but no org membership yet.
+        const hint = result.hasPendingInvitations
+          ? 'You have a pending team invitation - check your email to accept it and join your org.'
+          : 'Your Google account is verified but has no org. Use "Create org" to start a workspace, or accept a team invitation from your email.';
+        setGoogleError(hint);
+      }
+    },
+    onError: (error) => {
+      const message =
+        error instanceof ApiClientError ? error.message : 'Google sign-in failed. Try again.';
+      setGoogleError(message);
+    },
+  });
+
   const pending = loginMutation.isPending || signupMutation.isPending;
   const activeError = useMemo(() => {
     const error = loginMutation.error ?? signupMutation.error;
@@ -80,6 +122,46 @@ export function AuthLanding({ mode }: { mode: AuthMode }) {
       ? error.message
       : 'Something went wrong. Try again.';
   }, [loginMutation.error, signupMutation.error]);
+
+  // Load Google Identity Services script and render the sign-in button.
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID || !googleButtonRef.current) return;
+
+    const onCredentialResponse = (response: { credential: string }) => {
+      setGoogleError(null);
+      googleSignInMutation.mutate({ idToken: response.credential });
+    };
+
+    const initButton = () => {
+      if (!window.google || !googleButtonRef.current) return;
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: onCredentialResponse,
+      });
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        type: 'standard',
+        theme: 'outline',
+        size: 'large',
+        width: googleButtonRef.current.offsetWidth || 380,
+        text: mode === 'login' ? 'signin_with' : 'signup_with',
+      });
+    };
+
+    if (window.google) {
+      initButton();
+    } else {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.onload = initButton;
+      document.head.appendChild(script);
+    }
+
+    return () => {
+      window.google?.accounts.id.cancel();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, GOOGLE_CLIENT_ID]);
 
   return (
     <Box className="auth-page">
@@ -174,6 +256,28 @@ export function AuthLanding({ mode }: { mode: AuthMode }) {
                           : 'Create the first owner for a new organization.'}
                       </Text>
                     </Box>
+
+                    {GOOGLE_CLIENT_ID ? (
+                      <>
+                        <Stack gap="xs">
+                          {googleSignInMutation.isPending ? (
+                            <Button fullWidth variant="default" loading leftSection={<Loader2 size={16} />}>
+                              Signing in with Google...
+                            </Button>
+                          ) : (
+                            <Box ref={googleButtonRef} style={{ minHeight: 44 }} />
+                          )}
+                        </Stack>
+
+                        {googleError ? (
+                          <Alert color={googleError.includes('invitation') || googleError.includes('verified') ? 'blue' : 'red'} variant="light">
+                            {googleError}
+                          </Alert>
+                        ) : null}
+
+                        <Divider label="or continue with email" labelPosition="center" />
+                      </>
+                    ) : null}
 
                     {mode === 'login' ? (
                       <form
