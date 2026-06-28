@@ -1,6 +1,14 @@
 import { CurrentUser, Public } from '@nx-temp/auth';
 import { GoogleAuthResponse, LoginResponse } from '@nx-temp/data';
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -27,7 +35,12 @@ export class AuthController {
   @SkipThrottle({ invite: true })
   @Post('register')
   register(@Body() body: RegisterDto): Promise<LoginResponse> {
-    return this.authService.register(body.email, body.fullName, body.password, body.organizationName);
+    return this.authService.register(
+      body.email,
+      body.fullName,
+      body.password,
+      body.organizationName,
+    );
   }
 
   @Public()
@@ -41,7 +54,7 @@ export class AuthController {
   @Post('switch-org')
   switchOrg(
     @CurrentUser() user: LoginResponse['user'],
-    @Body() body: SwitchOrgDto
+    @Body() body: SwitchOrgDto,
   ): Promise<LoginResponse> {
     return this.authService.switchOrg(user.id, body.organizationId);
   }

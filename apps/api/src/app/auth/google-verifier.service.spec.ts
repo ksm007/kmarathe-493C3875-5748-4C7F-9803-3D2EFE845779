@@ -13,12 +13,15 @@ describe('GoogleVerifierService.verifyIdToken', () => {
 
   beforeEach(() => {
     mockVerifyIdToken = jest.fn();
-    MockOAuth2Client.mockImplementation(() => ({
-      verifyIdToken: mockVerifyIdToken,
-    }) as unknown as OAuth2Client);
+    MockOAuth2Client.mockImplementation(
+      () =>
+        ({
+          verifyIdToken: mockVerifyIdToken,
+        }) as unknown as OAuth2Client,
+    );
 
     service = new GoogleVerifierService(
-      new ConfigService({ GOOGLE_CLIENT_ID: 'test-client-id' })
+      new ConfigService({ GOOGLE_CLIENT_ID: 'test-client-id' }),
     );
   });
 
@@ -28,32 +31,51 @@ describe('GoogleVerifierService.verifyIdToken', () => {
 
   it('returns a GoogleProfile for a valid verified-email token', async () => {
     mockVerifyIdToken.mockResolvedValue(
-      makeTicket({ sub: 'uid-1', email: 'alice@example.com', email_verified: true, name: 'Alice' })
+      makeTicket({
+        sub: 'uid-1',
+        email: 'alice@example.com',
+        email_verified: true,
+        name: 'Alice',
+      }),
     );
 
     const profile = await service.verifyIdToken('good-token');
-    expect(profile).toEqual({ googleId: 'uid-1', email: 'alice@example.com', fullName: 'Alice' });
+    expect(profile).toEqual({
+      googleId: 'uid-1',
+      email: 'alice@example.com',
+      fullName: 'Alice',
+    });
   });
 
   it('throws 401 when email_verified is false', async () => {
     mockVerifyIdToken.mockResolvedValue(
-      makeTicket({ sub: 'uid-1', email: 'alice@example.com', email_verified: false })
+      makeTicket({
+        sub: 'uid-1',
+        email: 'alice@example.com',
+        email_verified: false,
+      }),
     );
 
-    await expect(service.verifyIdToken('unverified-token')).rejects.toThrow(UnauthorizedException);
+    await expect(service.verifyIdToken('unverified-token')).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('throws 401 when email_verified is missing', async () => {
     mockVerifyIdToken.mockResolvedValue(
-      makeTicket({ sub: 'uid-1', email: 'alice@example.com' })
+      makeTicket({ sub: 'uid-1', email: 'alice@example.com' }),
     );
 
-    await expect(service.verifyIdToken('no-verified-field-token')).rejects.toThrow(UnauthorizedException);
+    await expect(
+      service.verifyIdToken('no-verified-field-token'),
+    ).rejects.toThrow(UnauthorizedException);
   });
 
   it('throws 401 when the underlying verifyIdToken call throws', async () => {
     mockVerifyIdToken.mockRejectedValue(new Error('token expired'));
 
-    await expect(service.verifyIdToken('bad-token')).rejects.toThrow(UnauthorizedException);
+    await expect(service.verifyIdToken('bad-token')).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 });

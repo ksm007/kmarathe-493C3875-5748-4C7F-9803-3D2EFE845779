@@ -37,7 +37,9 @@ import { saveSession } from '~/lib/auth-storage';
 export type AuthMode = 'login' | 'signup';
 
 // VITE_GOOGLE_CLIENT_ID must be set to enable the Google sign-in button.
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as
+  | string
+  | undefined;
 
 // Google Identity Services type shim (the library is loaded via script tag).
 declare global {
@@ -45,7 +47,10 @@ declare global {
     google?: {
       accounts: {
         id: {
-          initialize: (config: { client_id: string; callback: (response: { credential: string }) => void }) => void;
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential: string }) => void;
+          }) => void;
           renderButton: (parent: HTMLElement, options: object) => void;
           cancel: () => void;
         };
@@ -106,7 +111,9 @@ export function AuthLanding({ mode }: { mode: AuthMode }) {
     },
     onError: (error) => {
       const message =
-        error instanceof ApiClientError ? error.message : 'Google sign-in failed. Try again.';
+        error instanceof ApiClientError
+          ? error.message
+          : 'Google sign-in failed. Try again.';
       setGoogleError(message);
     },
   });
@@ -260,21 +267,45 @@ export function AuthLanding({ mode }: { mode: AuthMode }) {
                     {GOOGLE_CLIENT_ID ? (
                       <>
                         <Stack gap="xs">
-                          <Box ref={googleButtonRef} style={{ minHeight: 44, display: googleSignInMutation.isPending ? 'none' : undefined }} />
+                          <Box
+                            ref={googleButtonRef}
+                            style={{
+                              minHeight: 44,
+                              display: googleSignInMutation.isPending
+                                ? 'none'
+                                : undefined,
+                            }}
+                          />
                           {googleSignInMutation.isPending ? (
-                            <Button fullWidth variant="default" loading leftSection={<Loader2 size={16} />}>
+                            <Button
+                              fullWidth
+                              variant="default"
+                              loading
+                              leftSection={<Loader2 size={16} />}
+                            >
                               Signing in with Google...
                             </Button>
                           ) : null}
                         </Stack>
 
                         {googleError ? (
-                          <Alert color={googleError.includes('invitation') || googleError.includes('verified') ? 'blue' : 'red'} variant="light">
+                          <Alert
+                            color={
+                              googleError.includes('invitation') ||
+                              googleError.includes('verified')
+                                ? 'blue'
+                                : 'red'
+                            }
+                            variant="light"
+                          >
                             {googleError}
                           </Alert>
                         ) : null}
 
-                        <Divider label="or continue with email" labelPosition="center" />
+                        <Divider
+                          label="or continue with email"
+                          labelPosition="center"
+                        />
                       </>
                     ) : null}
 
