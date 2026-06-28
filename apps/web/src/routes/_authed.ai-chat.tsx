@@ -14,7 +14,7 @@ import {
   Title,
 } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import type { ChatMessage, PendingChatAction } from '@nx-temp/data';
 import { Check, Sparkles, X } from 'lucide-react';
 import { apiClient } from '~/lib/api-client';
@@ -204,9 +204,16 @@ function ChatMessageItem({
         {message.sources.length ? (
           <Group gap="xs">
             {message.sources.map((source) => (
-              <Badge key={source.taskId} variant="outline">
-                {source.title}
-              </Badge>
+              <Link
+                key={source.taskId}
+                to="/tasks/$id"
+                params={{ id: source.taskId }}
+                style={{ textDecoration: 'none' }}
+              >
+                <Badge variant="outline" style={{ cursor: 'pointer' }}>
+                  {source.title}
+                </Badge>
+              </Link>
             ))}
           </Group>
         ) : null}
