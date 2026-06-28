@@ -20,6 +20,31 @@ export interface AppEnv {
   // Per-account brute-force protection on POST /auth/login.
   LOGIN_MAX_FAILED_ATTEMPTS: number;
   LOGIN_LOCKOUT_SECONDS: number;
+  // Express 'trust proxy' setting so the throttler keys on the real client IP
+  // behind a reverse proxy / load balancer / ingress. Boolean, hop count, or a
+  // verbatim Express value (e.g. 'loopback', a CIDR/subnet).
+  TRUST_PROXY: boolean | number | string;
+}
+
+function normalizeTrustProxy(value: unknown): boolean | number | string {
+  if (value === undefined || value === null) {
+    return true;
+  }
+  const raw = String(value).trim();
+  if (raw === '') {
+    return false;
+  }
+  const lower = raw.toLowerCase();
+  if (lower === 'true') {
+    return true;
+  }
+  if (lower === 'false') {
+    return false;
+  }
+  if (/^\d+$/.test(raw)) {
+    return Number(raw);
+  }
+  return raw;
 }
 
 export function validateEnv(config: Record<string, unknown>): AppEnv {
@@ -51,5 +76,6 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
     AUTH_RATE_LIMIT_MAX: Number(config.AUTH_RATE_LIMIT_MAX ?? 10),
     LOGIN_MAX_FAILED_ATTEMPTS: Number(config.LOGIN_MAX_FAILED_ATTEMPTS ?? 5),
     LOGIN_LOCKOUT_SECONDS: Number(config.LOGIN_LOCKOUT_SECONDS ?? 900),
+    TRUST_PROXY: normalizeTrustProxy(config.TRUST_PROXY),
   };
 }
