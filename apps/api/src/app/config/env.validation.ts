@@ -17,6 +17,11 @@ export interface AppEnv {
   // Per-IP rate limit applied to the public/abuse-prone auth + invite routes.
   AUTH_RATE_LIMIT_TTL_SECONDS: number;
   AUTH_RATE_LIMIT_MAX: number;
+  // Higher per-IP rate limit for the authenticated POST /invitations create
+  // route, so bulk team onboarding from a shared NAT/proxy IP is not throttled
+  // at the tighter public-auth limit.
+  INVITE_RATE_LIMIT_TTL_SECONDS: number;
+  INVITE_RATE_LIMIT_MAX: number;
   // Per-account brute-force protection on POST /auth/login.
   LOGIN_MAX_FAILED_ATTEMPTS: number;
   LOGIN_LOCKOUT_SECONDS: number;
@@ -75,6 +80,8 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
     CANARY_TOKEN: String(config.CANARY_TOKEN ?? '__SYSTEM_BOUNDARY_42__'),
     AUTH_RATE_LIMIT_TTL_SECONDS: Number(config.AUTH_RATE_LIMIT_TTL_SECONDS ?? 60),
     AUTH_RATE_LIMIT_MAX: Number(config.AUTH_RATE_LIMIT_MAX ?? 10),
+    INVITE_RATE_LIMIT_TTL_SECONDS: Number(config.INVITE_RATE_LIMIT_TTL_SECONDS ?? 60),
+    INVITE_RATE_LIMIT_MAX: Number(config.INVITE_RATE_LIMIT_MAX ?? 50),
     LOGIN_MAX_FAILED_ATTEMPTS: Number(config.LOGIN_MAX_FAILED_ATTEMPTS ?? 5),
     LOGIN_LOCKOUT_SECONDS: Number(config.LOGIN_LOCKOUT_SECONDS ?? 900),
     TRUST_PROXY: normalizeTrustProxy(config.TRUST_PROXY),

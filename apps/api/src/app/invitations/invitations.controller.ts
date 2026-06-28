@@ -2,7 +2,7 @@ import { CurrentUser, Public, RequirePermissions } from '@nx-temp/auth';
 import { AuthenticatedUser } from '@nx-temp/auth';
 import { InvitationResponse, LoginResponse, Permission } from '@nx-temp/data';
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService } from '../auth/auth.service';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
@@ -17,6 +17,7 @@ export class InvitationsController {
 
   @RequirePermissions(Permission.UserManage)
   @UseGuards(ThrottlerGuard)
+  @SkipThrottle({ auth: true })
   @Post()
   @HttpCode(HttpStatus.NO_CONTENT)
   create(@CurrentUser() user: AuthenticatedUser, @Body() body: CreateInvitationDto): Promise<void> {
@@ -31,6 +32,7 @@ export class InvitationsController {
 
   @Public()
   @UseGuards(ThrottlerGuard)
+  @SkipThrottle({ invite: true })
   @Post('accept')
   accept(@Body() body: AcceptInvitationDto): Promise<LoginResponse> {
     return this.authService.acceptInvitation(body.token, body.fullName, body.password);

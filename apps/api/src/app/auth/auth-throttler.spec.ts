@@ -12,7 +12,8 @@ import { InvitationsService } from '../invitations/invitations.service';
  * abuse-prone auth/invite routes and returns 429 past the per-IP limit.
  */
 describe('Auth/invite rate limiting (HTTP)', () => {
-  const LIMIT = 3;
+  const AUTH_LIMIT = 3;
+  const INVITE_LIMIT = 6;
   let app: INestApplication;
 
   const authServiceMock = {
@@ -29,7 +30,14 @@ describe('Auth/invite rate limiting (HTTP)', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: LIMIT }] })],
+      imports: [
+        ThrottlerModule.forRoot({
+          throttlers: [
+            { name: 'auth', ttl: 60_000, limit: AUTH_LIMIT },
+            { name: 'invite', ttl: 60_000, limit: INVITE_LIMIT },
+          ],
+        }),
+      ],
       controllers: [AuthController, InvitationsController],
       providers: [
         { provide: AuthService, useValue: authServiceMock },
@@ -45,15 +53,15 @@ describe('Auth/invite rate limiting (HTTP)', () => {
     await app.close();
   });
 
-  async function flood(path: string, body: object, okStatus: number) {
-    for (let i = 0; i < LIMIT; i++) {
+  async function flood(path: string, body: object, okStatus: number, limit: number) {
+    for (let i = 0; i < limit; i++) {
       await request(app.getHttpServer()).post(path).send(body).expect(okStatus);
     }
     return request(app.getHttpServer()).post(path).send(body);
   }
 
   it('returns 429 once POST /auth/login exceeds the per-IP limit', async () => {
-    const blocked = await flood('/auth/login', { email: 'a@b.com', password: 'x' }, 201);
+    const blocked = await flood('/auth/login', { email: 'a@b.com', password: 'x' }, 201, AUTH_LIMIT);
     expect(blocked.status).toBe(429);
   });
 
@@ -61,13 +69,14 @@ describe('Auth/invite rate limiting (HTTP)', () => {
     const blocked = await flood(
       '/auth/register',
       { email: 'a@b.com', fullName: 'A', password: 'x', organizationName: 'Org' },
-      201
+      201,
+      AUTH_LIMIT
     );
     expect(blocked.status).toBe(429);
   });
 
   it('returns 429 once POST /auth/forgot-password exceeds the per-IP limit', async () => {
-    const blocked = await flood('/auth/forgot-password', { email: 'a@b.com' }, 204);
+    const blocked = await flood('/auth/forgot-password', { email: 'a@b.com' }, 204, AUTH_LIMIT);
     expect(blocked.status).toBe(429);
   });
 
@@ -75,8 +84,22 @@ describe('Auth/invite rate limiting (HTTP)', () => {
     const blocked = await flood(
       '/invitations/accept',
       { token: 't', fullName: 'A', password: 'x' },
-      201
+      201,
+      AUTH_LIMIT
     );
+    expect(blocked.status).toBe(429);
+  });
+
+  it('governs POST /invitations create by the separate, higher invite limit', async () => {
+    const body = { email: 'a@b.com', role: 'member' };
+
+    // Sails past the tighter 'auth' limit because create skips it...
+    for (let i = 0; i < AUTH_LIMIT + 1; i++) {
+      await request(app.getHttpServer()).post('/invitations').send(body).expect(204);
+    }
+
+    // ...and only trips 429 once the higher 'invite' limit is exceeded.
+    const blocked = await flood('/invitations', body, 204, INVITE_LIMIT - (AUTH_LIMIT + 1));
     expect(blocked.status).toBe(429);
   });
 });

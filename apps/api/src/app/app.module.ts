@@ -30,8 +30,14 @@ import { UsersModule } from './users/users.module';
       useFactory: (configService: ConfigService) => ({
         throttlers: [
           {
+            name: 'auth',
             ttl: configService.get<number>('AUTH_RATE_LIMIT_TTL_SECONDS', 60) * 1000,
             limit: configService.get<number>('AUTH_RATE_LIMIT_MAX', 10),
+          },
+          {
+            name: 'invite',
+            ttl: configService.get<number>('INVITE_RATE_LIMIT_TTL_SECONDS', 60) * 1000,
+            limit: configService.get<number>('INVITE_RATE_LIMIT_MAX', 50),
           },
         ],
       }),
