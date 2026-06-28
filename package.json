@@ -116,6 +116,7 @@
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "cloudinary": "^2.10.0",
     "d3": "^7.9.0",
     "helmet": "^8.1.0",
     "lucide-react": "1.21.0",
