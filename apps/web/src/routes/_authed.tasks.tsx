@@ -47,10 +47,7 @@ import {
   mergeTasks,
   statusColumns,
 } from '~/features/tasks/board';
-import {
-  TaskFormModal,
-  emptyTaskForm,
-} from '~/features/tasks/task-form-modal';
+import { TaskFormModal, emptyTaskForm } from '~/features/tasks/task-form-modal';
 import type { TaskFormState } from '~/features/tasks/task-form-modal';
 
 type ViewMode = 'board' | 'list' | 'analytics';

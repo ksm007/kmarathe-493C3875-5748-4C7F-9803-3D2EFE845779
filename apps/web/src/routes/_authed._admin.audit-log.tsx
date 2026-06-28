@@ -69,9 +69,7 @@ function AuditLogRoute() {
       }),
       auditColumnHelper.accessor('actorEmail', {
         header: 'Actor',
-        cell: (info) => (
-          <Text size="sm">{info.getValue() ?? 'System'}</Text>
-        ),
+        cell: (info) => <Text size="sm">{info.getValue() ?? 'System'}</Text>,
       }),
       auditColumnHelper.accessor('action', {
         header: 'Action',

@@ -232,9 +232,7 @@ export function TaskFormModal({
                 min={0}
                 value={field.state.value}
                 onChange={(value) =>
-                  field.handleChange(
-                    typeof value === 'number' ? value : '',
-                  )
+                  field.handleChange(typeof value === 'number' ? value : '')
                 }
               />
             )}
@@ -270,7 +268,9 @@ export function TaskFormModal({
                   }))}
                   disabled={epicDisabled}
                   label="Sprint"
-                  placeholder={epicDisabled ? 'Epics stay in backlog' : 'Backlog'}
+                  placeholder={
+                    epicDisabled ? 'Epics stay in backlog' : 'Backlog'
+                  }
                   value={field.state.value || null}
                   onChange={(value) => field.handleChange(value ?? '')}
                 />

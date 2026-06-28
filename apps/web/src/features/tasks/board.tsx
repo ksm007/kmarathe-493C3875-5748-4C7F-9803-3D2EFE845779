@@ -473,9 +473,7 @@ export function TaskList({
       }),
       taskColumnHelper.accessor('status', {
         header: 'Status',
-        cell: (info) => (
-          <Badge variant="light">{info.getValue()}</Badge>
-        ),
+        cell: (info) => <Badge variant="light">{info.getValue()}</Badge>,
       }),
       taskColumnHelper.accessor('priority', {
         header: 'Priority',

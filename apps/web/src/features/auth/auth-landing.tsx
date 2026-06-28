@@ -420,8 +420,8 @@ function SignupForm({
       confirmPassword: '',
     },
     onSubmit: async ({ value }) => {
-      const { confirmPassword: _unused, ...payload } = value;
-      onSubmit(payload);
+      const { organizationName, fullName, email, password } = value;
+      onSubmit({ organizationName, fullName, email, password });
     },
   });
 

@@ -409,8 +409,7 @@ function InvitationsTable({
       }),
       invitationColumnHelper.accessor('expiresAt', {
         header: 'Expires',
-        cell: (info) =>
-          new Date(info.getValue()).toLocaleDateString(),
+        cell: (info) => new Date(info.getValue()).toLocaleDateString(),
       }),
     ],
     [],
