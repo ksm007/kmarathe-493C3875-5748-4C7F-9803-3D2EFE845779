@@ -106,7 +106,9 @@ function AuditLogRoute() {
                   </Table.Td>
                 </Table.Tr>
               ) : entries.length ? (
-                entries.map((entry) => <AuditRow key={entry.id} entry={entry} />)
+                entries.map((entry) => (
+                  <AuditRow key={entry.id} entry={entry} />
+                ))
               ) : (
                 <Table.Tr>
                   <Table.Td colSpan={6}>

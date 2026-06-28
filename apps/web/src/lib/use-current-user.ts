@@ -21,7 +21,7 @@ export function useCurrentUser(): CurrentUser {
 
   if (!data) {
     throw new Error(
-      'useCurrentUser: no session found - _authed guard should have redirected to /login'
+      'useCurrentUser: no session found - _authed guard should have redirected to /login',
     );
   }
   return data;

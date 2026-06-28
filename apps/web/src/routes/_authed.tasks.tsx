@@ -24,7 +24,12 @@ import type {
   TaskQuery,
   UpdateTaskRequest,
 } from '@nx-temp/data';
-import { IssueType, SprintState, TaskCategory, TaskStatus } from '@nx-temp/data';
+import {
+  IssueType,
+  SprintState,
+  TaskCategory,
+  TaskStatus,
+} from '@nx-temp/data';
 import { Plus, Search } from 'lucide-react';
 import { apiClient } from '~/lib/api-client';
 import { formatError } from '~/lib/format';
@@ -95,7 +100,8 @@ function TasksRoute() {
     ) ?? [];
   const epicOptions =
     taskFormOptions?.taskOptions.filter(
-      (task) => task.issueType === IssueType.Epic && task.id !== editingTask?.id,
+      (task) =>
+        task.issueType === IssueType.Epic && task.id !== editingTask?.id,
     ) ?? [];
   const groupedTasks = useMemo(() => groupTasksByStatus(tasks), [tasks]);
   const canReorderTasks =

@@ -70,8 +70,10 @@ export function TaskBoard({
   const [activeStartStatus, setActiveStartStatus] = useState<TaskStatus | null>(
     null,
   );
-  const [localBoard, setLocalBoard] =
-    useState<Record<TaskStatus, Task[]> | null>(null);
+  const [localBoard, setLocalBoard] = useState<Record<
+    TaskStatus,
+    Task[]
+  > | null>(null);
   const lastDragOverKeyRef = useRef('');
   const visibleBoard = localBoard ?? groupedTasks;
   const taskLookup = useMemo(() => {
@@ -132,7 +134,12 @@ export function TaskBoard({
         return currentBoard;
       }
 
-      return moveTaskInBoard(currentBoard, activeId, targetStatus, overTask?.id);
+      return moveTaskInBoard(
+        currentBoard,
+        activeId,
+        targetStatus,
+        overTask?.id,
+      );
     });
   };
 
@@ -225,7 +232,13 @@ function TaskColumn({
   });
 
   return (
-    <Paper ref={setNodeRef} withBorder radius="md" p="md" className="task-column">
+    <Paper
+      ref={setNodeRef}
+      withBorder
+      radius="md"
+      p="md"
+      className="task-column"
+    >
       <Group justify="space-between" mb="sm">
         <Text fw={800} size="sm">
           {column.label}
@@ -331,7 +344,12 @@ function TaskCard({
 
 function TaskDragPreview({ task }: { task: Task }) {
   return (
-    <Paper withBorder radius="md" p="sm" className="task-card task-card-overlay">
+    <Paper
+      withBorder
+      radius="md"
+      p="sm"
+      className="task-card task-card-overlay"
+    >
       <TaskCardContent task={task} />
     </Paper>
   );

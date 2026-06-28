@@ -17,7 +17,12 @@ import type {
   Task,
   UserSummary,
 } from '@nx-temp/data';
-import { IssueType, TaskCategory, TaskPriority, TaskStatus } from '@nx-temp/data';
+import {
+  IssueType,
+  TaskCategory,
+  TaskPriority,
+  TaskStatus,
+} from '@nx-temp/data';
 import { Trash2 } from 'lucide-react';
 import { statusColumns } from './board';
 

@@ -30,7 +30,11 @@ import {
 import { useState } from 'react';
 import type { ComponentType } from 'react';
 import { apiClient } from '~/lib/api-client';
-import { clearSession, getStoredSession, saveSession } from '~/lib/auth-storage';
+import {
+  clearSession,
+  getStoredSession,
+  saveSession,
+} from '~/lib/auth-storage';
 import { formatError } from '~/lib/format';
 import { useCurrentUser } from '~/lib/use-current-user';
 

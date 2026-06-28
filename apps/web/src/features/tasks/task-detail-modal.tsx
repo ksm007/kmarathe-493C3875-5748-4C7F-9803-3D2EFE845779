@@ -17,11 +17,7 @@ import {
   Textarea,
 } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  TaskActivity,
-  TaskAttachment,
-  TaskDetail,
-} from '@nx-temp/data';
+import type { TaskActivity, TaskAttachment, TaskDetail } from '@nx-temp/data';
 import {
   Image as ImageIcon,
   MessageSquare,

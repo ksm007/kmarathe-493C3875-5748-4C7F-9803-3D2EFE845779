@@ -68,7 +68,9 @@ function StandupReportRoute() {
           </Text>
         </Box>
         <Button
-          leftSection={report ? <RefreshCw size={16} /> : <Sparkles size={16} />}
+          leftSection={
+            report ? <RefreshCw size={16} /> : <Sparkles size={16} />
+          }
           loading={reportQuery.isFetching}
           variant={report ? 'default' : 'filled'}
           onClick={() => reportQuery.refetch()}
