@@ -322,6 +322,7 @@ Test coverage includes:
 - Intent parsing — title/description/priority extraction from free text (`intents.spec.ts`)
 - Organisation scope resolution (`organizations.service.spec.ts`)
 - Frontend auth reducer (`auth.reducer.spec.ts`)
+- Task activity emission — assignee/story-point discrete events and unchanged-value no-ops (`tasks-activity.spec.ts`)
 
 ---
 
