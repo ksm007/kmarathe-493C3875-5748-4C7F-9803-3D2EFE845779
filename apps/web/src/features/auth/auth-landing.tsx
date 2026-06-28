@@ -505,11 +505,6 @@ function SignupForm({
                 return 'Password must be at least 8 characters';
               return undefined;
             },
-            onChange: ({ value, fieldApi }) => {
-              // Trigger confirmPassword re-validation when password changes.
-              void fieldApi.form.validateField('confirmPassword', 'change');
-              return undefined;
-            },
           }}
         >
           {(field) => (
