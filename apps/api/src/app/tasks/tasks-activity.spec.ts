@@ -25,15 +25,23 @@ const ACTOR = {
   role: Role.Admin,
   email: 'actor@test.com',
   fullName: 'Actor User',
-  memberships: [{ organizationId: ORG_ID, organizationName: 'Test Org', role: Role.Admin }],
+  memberships: [
+    { organizationId: ORG_ID, organizationName: 'Test Org', role: Role.Admin },
+  ],
 };
 
-function makeTask(overrides: Partial<{
-  assigneeId: string | null;
-  assigneeName: string | null;
-  storyPoints: number | null;
-}> = {}) {
-  const { assigneeId = null, assigneeName = null, storyPoints = null } = overrides;
+function makeTask(
+  overrides: Partial<{
+    assigneeId: string | null;
+    assigneeName: string | null;
+    storyPoints: number | null;
+  }> = {},
+) {
+  const {
+    assigneeId = null,
+    assigneeName = null,
+    storyPoints = null,
+  } = overrides;
   return {
     id: TASK_ID,
     title: 'Test Task',
@@ -62,10 +70,17 @@ function makeTask(overrides: Partial<{
   };
 }
 
-function makeService(task: ReturnType<typeof makeTask>, options: {
-  newAssigneeName?: string;
-} = {}) {
-  const savedActivities: Array<{ type: TaskActivityType; metadata: Record<string, unknown> | null; message: string }> = [];
+function makeService(
+  task: ReturnType<typeof makeTask>,
+  options: {
+    newAssigneeName?: string;
+  } = {},
+) {
+  const savedActivities: Array<{
+    type: TaskActivityType;
+    metadata: Record<string, unknown> | null;
+    message: string;
+  }> = [];
 
   const taskAfterSave = { ...task };
 
@@ -90,7 +105,13 @@ function makeService(task: ReturnType<typeof makeTask>, options: {
 
   const activityCreate = jest.fn().mockImplementation((v: unknown) => v);
   const activitySave = jest.fn().mockImplementation((v: unknown) => {
-    savedActivities.push(v as { type: TaskActivityType; metadata: Record<string, unknown> | null; message: string });
+    savedActivities.push(
+      v as {
+        type: TaskActivityType;
+        metadata: Record<string, unknown> | null;
+        message: string;
+      },
+    );
     return Promise.resolve(v);
   });
 
@@ -116,15 +137,25 @@ function makeService(task: ReturnType<typeof makeTask>, options: {
     { findOne: jest.fn().mockResolvedValue(null) } as never,
     // usersRepository
     {
-      findOne: jest.fn().mockImplementation(({ where }: { where: { id: string } }) => {
-        if (where?.id === ASSIGNEE_ID) {
-          return Promise.resolve({ id: ASSIGNEE_ID, organizationId: ORG_ID, fullName: 'Old Assignee' });
-        }
-        if (where?.id === NEW_ASSIGNEE_ID) {
-          return Promise.resolve({ id: NEW_ASSIGNEE_ID, organizationId: ORG_ID, fullName: 'New Assignee' });
-        }
-        return Promise.resolve(null);
-      }),
+      findOne: jest
+        .fn()
+        .mockImplementation(({ where }: { where: { id: string } }) => {
+          if (where?.id === ASSIGNEE_ID) {
+            return Promise.resolve({
+              id: ASSIGNEE_ID,
+              organizationId: ORG_ID,
+              fullName: 'Old Assignee',
+            });
+          }
+          if (where?.id === NEW_ASSIGNEE_ID) {
+            return Promise.resolve({
+              id: NEW_ASSIGNEE_ID,
+              organizationId: ORG_ID,
+              fullName: 'New Assignee',
+            });
+          }
+          return Promise.resolve(null);
+        }),
     } as never,
     // taskActivitiesRepository
     { create: activityCreate, save: activitySave } as never,
@@ -139,13 +170,19 @@ function makeService(task: ReturnType<typeof makeTask>, options: {
     // taskEmbeddingsRepository
     { find: jest.fn().mockResolvedValue([]) } as never,
     // organizationsService
-    { getAccessibleOrganizationIds: jest.fn().mockResolvedValue([ORG_ID]) } as never,
+    {
+      getAccessibleOrganizationIds: jest.fn().mockResolvedValue([ORG_ID]),
+    } as never,
     // auditService
     { log: jest.fn() } as never,
     // aiService
     { syncTaskEmbedding: jest.fn() } as never,
     // attachmentStorage
-    { save: jest.fn(), remove: jest.fn(), createReadStream: jest.fn() } as never,
+    {
+      save: jest.fn(),
+      remove: jest.fn(),
+      createReadStream: jest.fn(),
+    } as never,
   );
 
   return { service, savedActivities };
@@ -157,8 +194,13 @@ function makeService(task: ReturnType<typeof makeTask>, options: {
 
 describe('TasksService activity emission - assignee_changed', () => {
   it('emits assignee_changed with old/new ids and names when assignee changes', async () => {
-    const task = makeTask({ assigneeId: ASSIGNEE_ID, assigneeName: 'Old Assignee' });
-    const { service, savedActivities } = makeService(task, { newAssigneeName: 'New Assignee' });
+    const task = makeTask({
+      assigneeId: ASSIGNEE_ID,
+      assigneeName: 'Old Assignee',
+    });
+    const { service, savedActivities } = makeService(task, {
+      newAssigneeName: 'New Assignee',
+    });
 
     await service.updateTask(ACTOR, TASK_ID, { assigneeId: NEW_ASSIGNEE_ID });
 
@@ -173,7 +215,10 @@ describe('TasksService activity emission - assignee_changed', () => {
   });
 
   it('emits assignee_changed when assignee is removed (set to null)', async () => {
-    const task = makeTask({ assigneeId: ASSIGNEE_ID, assigneeName: 'Old Assignee' });
+    const task = makeTask({
+      assigneeId: ASSIGNEE_ID,
+      assigneeName: 'Old Assignee',
+    });
     const { service, savedActivities } = makeService(task);
 
     await service.updateTask(ACTOR, TASK_ID, { assigneeId: null });
@@ -190,7 +235,10 @@ describe('TasksService activity emission - assignee_changed', () => {
   });
 
   it('does not emit assignee_changed when assignee id is unchanged', async () => {
-    const task = makeTask({ assigneeId: ASSIGNEE_ID, assigneeName: 'Old Assignee' });
+    const task = makeTask({
+      assigneeId: ASSIGNEE_ID,
+      assigneeName: 'Old Assignee',
+    });
     const { service, savedActivities } = makeService(task);
 
     // resolveAssigneeId will return ASSIGNEE_ID (same); mock usersRepository returns it
