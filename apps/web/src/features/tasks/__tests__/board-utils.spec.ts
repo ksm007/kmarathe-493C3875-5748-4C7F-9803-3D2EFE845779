@@ -1,12 +1,6 @@
-// Stub out component-only imports so the board module loads in a Node/jsdom
-// environment.  The pure utility functions exported from board.tsx (groupTasksByStatus,
-// mergeReorderedTasks, mergeTasks) have no dependency on these at runtime.
-jest.mock('@dnd-kit/core', () => ({}));
-jest.mock('@dnd-kit/sortable', () => ({}));
-jest.mock('@dnd-kit/utilities', () => ({ CSS: { Transform: { toString: () => '' } } }));
-jest.mock('@mantine/core', () => ({}));
-jest.mock('@tanstack/react-table', () => ({}));
-jest.mock('lucide-react', () => ({}));
+// The pure utility functions exported from board.tsx (groupTasksByStatus,
+// mergeReorderedTasks, mergeTasks) have no dependency on UI libraries at runtime;
+// the real packages load cleanly in jsdom without any mocking needed.
 
 import type { Task, ReorderTasksRequest } from '@nx-temp/data';
 import { TaskStatus, TaskPriority, IssueType, TaskCategory } from '@nx-temp/data';
