@@ -10,6 +10,7 @@ import {
   Textarea,
   TextInput,
 } from '@mantine/core';
+import { useForm, useStore } from '@tanstack/react-form';
 import type {
   AcceptanceCriteriaInput,
   CreateTaskRequest,
@@ -60,11 +61,11 @@ export const emptyTaskForm: TaskFormState = {
 
 export function TaskFormModal({
   assignableUsers,
+  editingTask,
   epicOptions,
   error,
-  form,
+  defaultValues,
   mode,
-  onChange,
   onClose,
   onDelete,
   onSave,
@@ -73,33 +74,27 @@ export function TaskFormModal({
   sprintOptions,
 }: {
   assignableUsers: UserSummary[];
+  editingTask: Task | null;
   epicOptions: Task[];
   error: string;
-  form: TaskFormState;
+  defaultValues: TaskFormState;
   mode: 'create' | 'edit';
-  onChange: (form: TaskFormState) => void;
   onClose: () => void;
   onDelete?: () => void;
-  onSave: () => void;
+  onSave: (payload: CreateTaskRequest) => void;
   opened: boolean;
   pending: boolean;
   sprintOptions: Sprint[];
 }) {
-  const update = <TKey extends keyof TaskFormState>(
-    key: TKey,
-    value: TaskFormState[TKey],
-  ) => {
-    onChange({ ...form, [key]: value });
-  };
-  const updateIssueType = (issueType: IssueType) => {
-    onChange({
-      ...form,
-      issueType,
-      parentEpicId: issueType === IssueType.Epic ? '' : form.parentEpicId,
-      sprintId: issueType === IssueType.Epic ? '' : form.sprintId,
-    });
-  };
-  const epicDisabled = form.issueType === IssueType.Epic;
+  const form = useForm({
+    defaultValues,
+    onSubmit: async ({ value }) => {
+      onSave(taskFormToPayload(value, editingTask));
+    },
+  });
+
+  const issueType = useStore(form.store, (s) => s.values.issueType);
+  const epicDisabled = issueType === IssueType.Epic;
 
   return (
     <Modal
@@ -112,144 +107,228 @@ export function TaskFormModal({
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          onSave();
+          void form.handleSubmit();
         }}
       >
         <Stack gap="md">
-          <TextInput
-            label="Title"
-            maxLength={160}
-            required
-            value={form.title}
-            onChange={(event) => update('title', event.target.value)}
-          />
-          <Textarea
-            autosize
-            label="Description"
-            maxLength={2000}
-            minRows={3}
-            value={form.description}
-            onChange={(event) => update('description', event.target.value)}
-          />
+          <form.Field
+            name="title"
+            validators={{
+              onSubmit: ({ value }) =>
+                !value.trim() ? 'Title is required' : undefined,
+            }}
+          >
+            {(field) => (
+              <TextInput
+                label="Title"
+                maxLength={160}
+                required
+                value={field.state.value}
+                onChange={(event) => field.handleChange(event.target.value)}
+                onBlur={field.handleBlur}
+                error={field.state.meta.errors[0]}
+              />
+            )}
+          </form.Field>
+
+          <form.Field name="description">
+            {(field) => (
+              <Textarea
+                autosize
+                label="Description"
+                maxLength={2000}
+                minRows={3}
+                value={field.state.value}
+                onChange={(event) => field.handleChange(event.target.value)}
+                onBlur={field.handleBlur}
+              />
+            )}
+          </form.Field>
+
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <Select
-              allowDeselect={false}
-              label="Type"
-              data={[
-                { value: IssueType.Task, label: 'Task' },
-                { value: IssueType.Bug, label: 'Bug' },
-                { value: IssueType.Story, label: 'Story' },
-                { value: IssueType.Epic, label: 'Epic' },
-              ]}
-              value={form.issueType}
-              onChange={(value) => updateIssueType(value as IssueType)}
-            />
-            <Select
-              allowDeselect={false}
-              label="Status"
-              data={statusColumns.map((column) => ({
-                value: column.status,
-                label: column.label,
-              }))}
-              value={form.status}
-              onChange={(value) => update('status', value as TaskStatus)}
-            />
-            <Select
-              allowDeselect={false}
-              label="Category"
-              data={[
-                { value: TaskCategory.Work, label: 'Work' },
-                { value: TaskCategory.Personal, label: 'Personal' },
-                { value: TaskCategory.Ops, label: 'Ops' },
-              ]}
-              value={form.category}
-              onChange={(value) => update('category', value as TaskCategory)}
-            />
-            <Select
-              allowDeselect={false}
-              label="Priority"
-              data={[
-                { value: TaskPriority.Low, label: 'Low' },
-                { value: TaskPriority.Medium, label: 'Medium' },
-                { value: TaskPriority.High, label: 'High' },
-              ]}
-              value={form.priority}
-              onChange={(value) => update('priority', value as TaskPriority)}
-            />
+            <form.Field name="issueType">
+              {(field) => (
+                <Select
+                  allowDeselect={false}
+                  label="Type"
+                  data={[
+                    { value: IssueType.Task, label: 'Task' },
+                    { value: IssueType.Bug, label: 'Bug' },
+                    { value: IssueType.Story, label: 'Story' },
+                    { value: IssueType.Epic, label: 'Epic' },
+                  ]}
+                  value={field.state.value}
+                  onChange={(value) => {
+                    const nextType = value as IssueType;
+                    field.handleChange(nextType);
+                    if (nextType === IssueType.Epic) {
+                      form.setFieldValue('parentEpicId', '');
+                      form.setFieldValue('sprintId', '');
+                    }
+                  }}
+                />
+              )}
+            </form.Field>
+
+            <form.Field name="status">
+              {(field) => (
+                <Select
+                  allowDeselect={false}
+                  label="Status"
+                  data={statusColumns.map((column) => ({
+                    value: column.status,
+                    label: column.label,
+                  }))}
+                  value={field.state.value}
+                  onChange={(value) => field.handleChange(value as TaskStatus)}
+                />
+              )}
+            </form.Field>
+
+            <form.Field name="category">
+              {(field) => (
+                <Select
+                  allowDeselect={false}
+                  label="Category"
+                  data={[
+                    { value: TaskCategory.Work, label: 'Work' },
+                    { value: TaskCategory.Personal, label: 'Personal' },
+                    { value: TaskCategory.Ops, label: 'Ops' },
+                  ]}
+                  value={field.state.value}
+                  onChange={(value) =>
+                    field.handleChange(value as TaskCategory)
+                  }
+                />
+              )}
+            </form.Field>
+
+            <form.Field name="priority">
+              {(field) => (
+                <Select
+                  allowDeselect={false}
+                  label="Priority"
+                  data={[
+                    { value: TaskPriority.Low, label: 'Low' },
+                    { value: TaskPriority.Medium, label: 'Medium' },
+                    { value: TaskPriority.High, label: 'High' },
+                  ]}
+                  value={field.state.value}
+                  onChange={(value) =>
+                    field.handleChange(value as TaskPriority)
+                  }
+                />
+              )}
+            </form.Field>
           </SimpleGrid>
-          <NumberInput
-            allowDecimal={false}
-            allowNegative={false}
-            label="Story points"
-            max={40}
-            min={0}
-            value={form.storyPoints}
-            onChange={(value) =>
-              update('storyPoints', typeof value === 'number' ? value : '')
-            }
-          />
+
+          <form.Field name="storyPoints">
+            {(field) => (
+              <NumberInput
+                allowDecimal={false}
+                allowNegative={false}
+                label="Story points"
+                max={40}
+                min={0}
+                value={field.state.value}
+                onChange={(value) =>
+                  field.handleChange(typeof value === 'number' ? value : '')
+                }
+              />
+            )}
+          </form.Field>
+
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <Select
-              clearable
-              data={epicOptions.map((task) => ({
-                value: task.id,
-                label: task.title,
-              }))}
-              disabled={epicDisabled}
-              label="Epic"
-              placeholder={
-                epicDisabled ? 'Epics cannot belong to epics' : 'No epic'
-              }
-              value={form.parentEpicId || null}
-              onChange={(value) => update('parentEpicId', value ?? '')}
-            />
-            <Select
-              clearable
-              data={sprintOptions.map((sprint) => ({
-                value: sprint.id,
-                label: `${sprint.name} - ${sprint.state}`,
-              }))}
-              disabled={epicDisabled}
-              label="Sprint"
-              placeholder={epicDisabled ? 'Epics stay in backlog' : 'Backlog'}
-              value={form.sprintId || null}
-              onChange={(value) => update('sprintId', value ?? '')}
-            />
-            <Select
-              clearable
-              data={assignableUsers.map((user) => ({
-                value: user.id,
-                label: `${user.fullName} - ${user.organizationName}`,
-              }))}
-              label="Assignee"
-              placeholder="Unassigned"
-              value={form.assigneeId || null}
-              onChange={(value) => update('assigneeId', value ?? '')}
-            />
-            <TextInput
-              label="Due date"
-              type="date"
-              value={form.dueDate}
-              onChange={(event) => update('dueDate', event.target.value)}
-            />
+            <form.Field name="parentEpicId">
+              {(field) => (
+                <Select
+                  clearable
+                  data={epicOptions.map((task) => ({
+                    value: task.id,
+                    label: task.title,
+                  }))}
+                  disabled={epicDisabled}
+                  label="Epic"
+                  placeholder={
+                    epicDisabled ? 'Epics cannot belong to epics' : 'No epic'
+                  }
+                  value={field.state.value || null}
+                  onChange={(value) => field.handleChange(value ?? '')}
+                />
+              )}
+            </form.Field>
+
+            <form.Field name="sprintId">
+              {(field) => (
+                <Select
+                  clearable
+                  data={sprintOptions.map((sprint) => ({
+                    value: sprint.id,
+                    label: `${sprint.name} - ${sprint.state}`,
+                  }))}
+                  disabled={epicDisabled}
+                  label="Sprint"
+                  placeholder={
+                    epicDisabled ? 'Epics stay in backlog' : 'Backlog'
+                  }
+                  value={field.state.value || null}
+                  onChange={(value) => field.handleChange(value ?? '')}
+                />
+              )}
+            </form.Field>
+
+            <form.Field name="assigneeId">
+              {(field) => (
+                <Select
+                  clearable
+                  data={assignableUsers.map((user) => ({
+                    value: user.id,
+                    label: `${user.fullName} - ${user.organizationName}`,
+                  }))}
+                  label="Assignee"
+                  placeholder="Unassigned"
+                  value={field.state.value || null}
+                  onChange={(value) => field.handleChange(value ?? '')}
+                />
+              )}
+            </form.Field>
+
+            <form.Field name="dueDate">
+              {(field) => (
+                <TextInput
+                  label="Due date"
+                  type="date"
+                  value={field.state.value}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                />
+              )}
+            </form.Field>
           </SimpleGrid>
-          <TextInput
-            label="Tags"
-            placeholder="security, auth, sprint-12"
-            value={form.tagsText}
-            onChange={(event) => update('tagsText', event.target.value)}
-          />
-          <Textarea
-            autosize
-            label="Acceptance criteria"
-            maxLength={4800}
-            minRows={3}
-            placeholder="One criterion per line"
-            value={form.acceptanceCriteriaText}
-            onChange={(event) =>
-              update('acceptanceCriteriaText', event.target.value)
-            }
-          />
+
+          <form.Field name="tagsText">
+            {(field) => (
+              <TextInput
+                label="Tags"
+                placeholder="security, auth, sprint-12"
+                value={field.state.value}
+                onChange={(event) => field.handleChange(event.target.value)}
+              />
+            )}
+          </form.Field>
+
+          <form.Field name="acceptanceCriteriaText">
+            {(field) => (
+              <Textarea
+                autosize
+                label="Acceptance criteria"
+                maxLength={4800}
+                minRows={3}
+                placeholder="One criterion per line"
+                value={field.state.value}
+                onChange={(event) => field.handleChange(event.target.value)}
+              />
+            )}
+          </form.Field>
 
           {error ? <Alert color="red">{error}</Alert> : null}
 

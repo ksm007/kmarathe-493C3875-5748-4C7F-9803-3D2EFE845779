@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo, useState } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import {
   Alert,
   Box,
@@ -17,6 +17,7 @@ import {
   ThemeIcon,
   Title,
 } from '@mantine/core';
+import { useForm } from '@tanstack/react-form';
 import { useMutation } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import type { LoginRequest, RegisterRequest } from '@nx-temp/data';
@@ -33,6 +34,7 @@ import {
 } from 'lucide-react';
 import { apiClient, ApiClientError } from '~/lib/api-client';
 import { saveSession } from '~/lib/auth-storage';
+import { useState } from 'react';
 
 export type AuthMode = 'login' | 'signup';
 
@@ -68,20 +70,6 @@ export function AuthLanding({ mode }: { mode: AuthMode }) {
   const navigate = useNavigate();
   const googleButtonRef = useRef<HTMLDivElement>(null);
   const [googleError, setGoogleError] = useState<string | null>(null);
-  const [loginForm, setLoginForm] = useState<LoginRequest>({
-    email: '',
-    password: '',
-  });
-  const [signupForm, setSignupForm] = useState<RegisterRequest>({
-    organizationName: '',
-    fullName: '',
-    email: '',
-    password: '',
-  });
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [confirmPasswordError, setConfirmPasswordError] = useState<
-    string | null
-  >(null);
 
   const loginMutation = useMutation({
     mutationFn: apiClient.login,
@@ -186,7 +174,7 @@ export function AuthLanding({ mode }: { mode: AuthMode }) {
                   </ThemeIcon>
                   <Box>
                     <Text size="xs" fw={700} tt="uppercase" c="blue.1">
-                      Turbo Vets
+                      Stride
                     </Text>
                     <Text size="sm" c="gray.4">
                       SaaS work management
@@ -313,151 +301,15 @@ export function AuthLanding({ mode }: { mode: AuthMode }) {
                     ) : null}
 
                     {mode === 'login' ? (
-                      <form
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          loginMutation.mutate(loginForm);
-                        }}
-                      >
-                        <Stack gap="md">
-                          <TextInput
-                            label="Email"
-                            type="email"
-                            autoComplete="email"
-                            leftSection={<Mail size={16} />}
-                            value={loginForm.email}
-                            onChange={(event) =>
-                              setLoginForm((current) => ({
-                                ...current,
-                                email: event.target.value,
-                              }))
-                            }
-                            required
-                          />
-                          <PasswordInput
-                            label="Password"
-                            autoComplete="current-password"
-                            value={loginForm.password}
-                            onChange={(event) =>
-                              setLoginForm((current) => ({
-                                ...current,
-                                password: event.target.value,
-                              }))
-                            }
-                            required
-                          />
-                          <Text size="sm" ta="right">
-                            <Text
-                              component={Link}
-                              to="/forgot-password"
-                              c="blue"
-                              inherit
-                            >
-                              Forgot password?
-                            </Text>
-                          </Text>
-                          <SubmitButton pending={pending}>Sign in</SubmitButton>
-                        </Stack>
-                      </form>
+                      <LoginForm
+                        pending={pending}
+                        onSubmit={(values) => loginMutation.mutate(values)}
+                      />
                     ) : (
-                      <form
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          if (signupForm.password !== confirmPassword) {
-                            setConfirmPasswordError('Passwords do not match');
-                            return;
-                          }
-                          setConfirmPasswordError(null);
-                          signupMutation.mutate(signupForm);
-                        }}
-                      >
-                        <Stack gap="md">
-                          <TextInput
-                            label="Organization"
-                            leftSection={<Building2 size={16} />}
-                            value={signupForm.organizationName}
-                            onChange={(event) =>
-                              setSignupForm((current) => ({
-                                ...current,
-                                organizationName: event.target.value,
-                              }))
-                            }
-                            required
-                            minLength={2}
-                          />
-                          <TextInput
-                            label="Full name"
-                            value={signupForm.fullName}
-                            onChange={(event) =>
-                              setSignupForm((current) => ({
-                                ...current,
-                                fullName: event.target.value,
-                              }))
-                            }
-                            required
-                          />
-                          <TextInput
-                            label="Work email"
-                            type="email"
-                            autoComplete="email"
-                            leftSection={<Mail size={16} />}
-                            value={signupForm.email}
-                            onChange={(event) =>
-                              setSignupForm((current) => ({
-                                ...current,
-                                email: event.target.value,
-                              }))
-                            }
-                            required
-                          />
-                          <PasswordInput
-                            label="Password"
-                            autoComplete="new-password"
-                            minLength={8}
-                            value={signupForm.password}
-                            onChange={(event) => {
-                              setSignupForm((current) => ({
-                                ...current,
-                                password: event.target.value,
-                              }));
-                              if (
-                                confirmPassword &&
-                                event.target.value !== confirmPassword
-                              ) {
-                                setConfirmPasswordError(
-                                  'Passwords do not match',
-                                );
-                              } else {
-                                setConfirmPasswordError(null);
-                              }
-                            }}
-                            required
-                          />
-                          <PasswordInput
-                            label="Confirm password"
-                            autoComplete="new-password"
-                            value={confirmPassword}
-                            error={confirmPasswordError}
-                            onChange={(event) => {
-                              setConfirmPassword(event.target.value);
-                              if (
-                                event.target.value &&
-                                event.target.value !== signupForm.password
-                              ) {
-                                setConfirmPasswordError(
-                                  'Passwords do not match',
-                                );
-                              } else {
-                                setConfirmPasswordError(null);
-                              }
-                            }}
-                            required
-                          />
-                          <SubmitButton pending={pending}>
-                            Create workspace
-                          </SubmitButton>
-                        </Stack>
-                      </form>
+                      <SignupForm
+                        pending={pending}
+                        onSubmit={(values) => signupMutation.mutate(values)}
+                      />
                     )}
 
                     {activeError ? (
@@ -473,6 +325,233 @@ export function AuthLanding({ mode }: { mode: AuthMode }) {
         </Paper>
       </Container>
     </Box>
+  );
+}
+
+function LoginForm({
+  pending,
+  onSubmit,
+}: {
+  pending: boolean;
+  onSubmit: (values: LoginRequest) => void;
+}) {
+  const form = useForm({
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+    onSubmit: async ({ value }) => {
+      onSubmit(value);
+    },
+  });
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        void form.handleSubmit();
+      }}
+    >
+      <Stack gap="md">
+        <form.Field
+          name="email"
+          validators={{
+            onSubmit: ({ value }) =>
+              !value.trim() ? 'Email is required' : undefined,
+          }}
+        >
+          {(field) => (
+            <TextInput
+              label="Email"
+              type="email"
+              autoComplete="email"
+              leftSection={<Mail size={16} />}
+              value={field.state.value}
+              onChange={(event) => field.handleChange(event.target.value)}
+              onBlur={field.handleBlur}
+              error={field.state.meta.errors[0]}
+              required
+            />
+          )}
+        </form.Field>
+        <form.Field
+          name="password"
+          validators={{
+            onSubmit: ({ value }) =>
+              !value ? 'Password is required' : undefined,
+          }}
+        >
+          {(field) => (
+            <PasswordInput
+              label="Password"
+              autoComplete="current-password"
+              value={field.state.value}
+              onChange={(event) => field.handleChange(event.target.value)}
+              onBlur={field.handleBlur}
+              error={field.state.meta.errors[0]}
+              required
+            />
+          )}
+        </form.Field>
+        <Text size="sm" ta="right">
+          <Text component={Link} to="/forgot-password" c="blue" inherit>
+            Forgot password?
+          </Text>
+        </Text>
+        <SubmitButton pending={pending}>Sign in</SubmitButton>
+      </Stack>
+    </form>
+  );
+}
+
+function SignupForm({
+  pending,
+  onSubmit,
+}: {
+  pending: boolean;
+  onSubmit: (values: RegisterRequest) => void;
+}) {
+  const form = useForm({
+    defaultValues: {
+      organizationName: '',
+      fullName: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+    },
+    onSubmit: async ({ value }) => {
+      const { organizationName, fullName, email, password } = value;
+      onSubmit({ organizationName, fullName, email, password });
+    },
+  });
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        void form.handleSubmit();
+      }}
+    >
+      <Stack gap="md">
+        <form.Field
+          name="organizationName"
+          validators={{
+            onSubmit: ({ value }) => {
+              if (!value.trim()) return 'Organization name is required';
+              if (value.trim().length < 2)
+                return 'Organization name must be at least 2 characters';
+              return undefined;
+            },
+          }}
+        >
+          {(field) => (
+            <TextInput
+              label="Organization"
+              leftSection={<Building2 size={16} />}
+              value={field.state.value}
+              onChange={(event) => field.handleChange(event.target.value)}
+              onBlur={field.handleBlur}
+              error={field.state.meta.errors[0]}
+              required
+              minLength={2}
+            />
+          )}
+        </form.Field>
+        <form.Field
+          name="fullName"
+          validators={{
+            onSubmit: ({ value }) =>
+              !value.trim() ? 'Full name is required' : undefined,
+          }}
+        >
+          {(field) => (
+            <TextInput
+              label="Full name"
+              value={field.state.value}
+              onChange={(event) => field.handleChange(event.target.value)}
+              onBlur={field.handleBlur}
+              error={field.state.meta.errors[0]}
+              required
+            />
+          )}
+        </form.Field>
+        <form.Field
+          name="email"
+          validators={{
+            onSubmit: ({ value }) =>
+              !value.trim() ? 'Email is required' : undefined,
+          }}
+        >
+          {(field) => (
+            <TextInput
+              label="Work email"
+              type="email"
+              autoComplete="email"
+              leftSection={<Mail size={16} />}
+              value={field.state.value}
+              onChange={(event) => field.handleChange(event.target.value)}
+              onBlur={field.handleBlur}
+              error={field.state.meta.errors[0]}
+              required
+            />
+          )}
+        </form.Field>
+        <form.Field
+          name="password"
+          validators={{
+            onSubmit: ({ value }) => {
+              if (!value) return 'Password is required';
+              if (value.length < 8)
+                return 'Password must be at least 8 characters';
+              return undefined;
+            },
+          }}
+        >
+          {(field) => (
+            <PasswordInput
+              label="Password"
+              autoComplete="new-password"
+              minLength={8}
+              value={field.state.value}
+              onChange={(event) => field.handleChange(event.target.value)}
+              onBlur={field.handleBlur}
+              error={field.state.meta.errors[0]}
+              required
+            />
+          )}
+        </form.Field>
+        <form.Field
+          name="confirmPassword"
+          validators={{
+            onChangeListenTo: ['password'],
+            onChange: ({ value, fieldApi }) => {
+              const password = fieldApi.form.getFieldValue('password');
+              if (value && value !== password) return 'Passwords do not match';
+              return undefined;
+            },
+            onSubmit: ({ value, fieldApi }) => {
+              const password = fieldApi.form.getFieldValue('password');
+              if (!value) return 'Please confirm your password';
+              if (value !== password) return 'Passwords do not match';
+              return undefined;
+            },
+          }}
+        >
+          {(field) => (
+            <PasswordInput
+              label="Confirm password"
+              autoComplete="new-password"
+              value={field.state.value}
+              onChange={(event) => field.handleChange(event.target.value)}
+              onBlur={field.handleBlur}
+              error={field.state.meta.errors[0]}
+              required
+            />
+          )}
+        </form.Field>
+        <SubmitButton pending={pending}>Create workspace</SubmitButton>
+      </Stack>
+    </form>
   );
 }
 

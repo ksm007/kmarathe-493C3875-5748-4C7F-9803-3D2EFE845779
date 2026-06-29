@@ -1,6 +1,14 @@
 import { useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type SortingState,
+} from '@tanstack/react-table';
+import {
   DndContext,
   DragEndEvent,
   DragOverlay,
@@ -432,6 +440,8 @@ function TaskCardContent({
   );
 }
 
+const taskColumnHelper = createColumnHelper<Task>();
+
 export function TaskList({
   tasks,
   onDelete,
@@ -443,6 +453,90 @@ export function TaskList({
   onEdit: (task: Task) => void;
   onOpenDetails: (task: Task) => void;
 }) {
+  const [sorting, setSorting] = useState<SortingState>([]);
+
+  const columns = useMemo(
+    () => [
+      taskColumnHelper.accessor('title', {
+        header: 'Title',
+        cell: (info) => (
+          <>
+            <Text fw={700} size="sm">
+              {info.getValue()}
+            </Text>
+            <Text size="xs" c="dimmed">
+              {info.row.original.issueType} in{' '}
+              {info.row.original.organizationName}
+            </Text>
+          </>
+        ),
+      }),
+      taskColumnHelper.accessor('status', {
+        header: 'Status',
+        cell: (info) => <Badge variant="light">{info.getValue()}</Badge>,
+      }),
+      taskColumnHelper.accessor('priority', {
+        header: 'Priority',
+        cell: (info) => (
+          <Badge color={priorityColor[info.getValue()]} variant="light">
+            {info.getValue()}
+          </Badge>
+        ),
+      }),
+      taskColumnHelper.accessor('assigneeName', {
+        header: 'Assignee',
+        cell: (info) => info.getValue() ?? 'Unassigned',
+      }),
+      taskColumnHelper.accessor('sprintName', {
+        header: 'Sprint',
+        cell: (info) => info.getValue() ?? 'Backlog',
+      }),
+      taskColumnHelper.display({
+        id: 'actions',
+        header: 'Actions',
+        cell: (info) => {
+          const task = info.row.original;
+          return (
+            <Group gap={4} wrap="nowrap">
+              <Button
+                size="compact-xs"
+                variant="subtle"
+                onClick={() => onOpenDetails(task)}
+              >
+                <Eye size={14} />
+              </Button>
+              <Button
+                size="compact-xs"
+                variant="subtle"
+                onClick={() => onEdit(task)}
+              >
+                <Pencil size={14} />
+              </Button>
+              <Button
+                color="red"
+                size="compact-xs"
+                variant="subtle"
+                onClick={() => onDelete(task)}
+              >
+                <Trash2 size={14} />
+              </Button>
+            </Group>
+          );
+        },
+      }),
+    ],
+    [onDelete, onEdit, onOpenDetails],
+  );
+
+  const table = useReactTable({
+    data: tasks,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
   if (tasks.length === 0) {
     return (
       <Paper withBorder radius="md" p="xl">
@@ -456,62 +550,40 @@ export function TaskList({
       <Table.ScrollContainer minWidth={760}>
         <Table verticalSpacing="sm">
           <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Title</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Priority</Table.Th>
-              <Table.Th>Assignee</Table.Th>
-              <Table.Th>Sprint</Table.Th>
-              <Table.Th>Actions</Table.Th>
-            </Table.Tr>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <Table.Tr key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <Table.Th
+                    key={header.id}
+                    style={
+                      header.column.getCanSort()
+                        ? { cursor: 'pointer', userSelect: 'none' }
+                        : undefined
+                    }
+                    onClick={header.column.getToggleSortingHandler()}
+                  >
+                    {flexRender(
+                      header.column.columnDef.header,
+                      header.getContext(),
+                    )}
+                    {header.column.getIsSorted() === 'asc'
+                      ? ' ↑'
+                      : header.column.getIsSorted() === 'desc'
+                        ? ' ↓'
+                        : null}
+                  </Table.Th>
+                ))}
+              </Table.Tr>
+            ))}
           </Table.Thead>
           <Table.Tbody>
-            {tasks.map((task) => (
-              <Table.Tr key={task.id}>
-                <Table.Td>
-                  <Text fw={700} size="sm">
-                    {task.title}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {task.issueType} in {task.organizationName}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Badge variant="light">{task.status}</Badge>
-                </Table.Td>
-                <Table.Td>
-                  <Badge color={priorityColor[task.priority]} variant="light">
-                    {task.priority}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>{task.assigneeName ?? 'Unassigned'}</Table.Td>
-                <Table.Td>{task.sprintName ?? 'Backlog'}</Table.Td>
-                <Table.Td>
-                  <Group gap={4} wrap="nowrap">
-                    <Button
-                      size="compact-xs"
-                      variant="subtle"
-                      onClick={() => onOpenDetails(task)}
-                    >
-                      <Eye size={14} />
-                    </Button>
-                    <Button
-                      size="compact-xs"
-                      variant="subtle"
-                      onClick={() => onEdit(task)}
-                    >
-                      <Pencil size={14} />
-                    </Button>
-                    <Button
-                      color="red"
-                      size="compact-xs"
-                      variant="subtle"
-                      onClick={() => onDelete(task)}
-                    >
-                      <Trash2 size={14} />
-                    </Button>
-                  </Group>
-                </Table.Td>
+            {table.getRowModel().rows.map((row) => (
+              <Table.Tr key={row.id}>
+                {row.getVisibleCells().map((cell) => (
+                  <Table.Td key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </Table.Td>
+                ))}
               </Table.Tr>
             ))}
           </Table.Tbody>
