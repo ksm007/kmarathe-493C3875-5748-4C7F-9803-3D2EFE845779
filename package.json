@@ -10,7 +10,7 @@
     "build:dashboard": "CI=1 npx nx build dashboard",
     "build:web": "npx nx build web",
     "typecheck:web": "npx nx typecheck web",
-    "test": "npx nx run-many -t test --projects=api,dashboard,auth,data",
+    "test": "npx nx run-many -t test --projects=api,dashboard,auth,data,web",
     "db:migrate": "ts-node --project apps/api/tsconfig.app.json -r tsconfig-paths/register -r dotenv/config apps/api/src/scripts/migrate.ts",
     "db:seed": "ts-node --project apps/api/tsconfig.app.json -r tsconfig-paths/register -r dotenv/config apps/api/src/scripts/seed.ts",
     "ai:backfill": "ts-node --project apps/api/tsconfig.app.json -r tsconfig-paths/register -r dotenv/config apps/api/src/scripts/backfill-embeddings.ts"
@@ -53,6 +53,8 @@
     "@swc-node/register": "~1.11.1",
     "@swc/core": "~1.15.5",
     "@swc/helpers": "~0.5.18",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/bcrypt": "^6.0.0",
     "@types/d3": "^7.4.3",
     "@types/jest": "^29.5.12",

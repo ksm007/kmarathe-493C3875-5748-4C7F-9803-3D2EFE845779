@@ -37,7 +37,7 @@ export default defineConfig({
         `${workspaceRoot}/tsconfig.base.json`,
       ],
     }),
-    tanstackStart({ srcDirectory: 'src' }),
+    tanstackStart({ srcDirectory: 'src', router: { routeFileIgnorePattern: '__tests__' } }),
     react(),
     nitro(),
   ],
