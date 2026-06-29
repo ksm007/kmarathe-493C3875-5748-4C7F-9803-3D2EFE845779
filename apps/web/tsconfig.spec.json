@@ -7,7 +7,7 @@
     "jsx": "react-jsx",
     "strict": true,
     "noEmit": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": false
   },
   "exclude": ["node_modules", "dist", ".output"],
   "include": [
