@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["jest", "node", "vite/client"],
+    "esModuleInterop": true
+  },
+  "exclude": ["node_modules", "dist", ".output"],
+  "include": [
+    "jest.config.ts",
+    "jest.setup.ts",
+    "jest.transformer.js",
+    "src/**/*.spec.ts",
+    "src/**/*.spec.tsx",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
+  ]
+}
