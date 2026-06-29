@@ -321,6 +321,7 @@ also returning `429`; a successful login clears the counter.
 npm test                          # all projects
 npx nx test api                   # API unit tests
 npx nx test auth                  # auth lib tests
+npx nx test web                   # React frontend unit tests
 ```
 
 Test coverage includes:
@@ -331,6 +332,10 @@ Test coverage includes:
 - Organisation scope resolution (`organizations.service.spec.ts`)
 - Frontend auth reducer (`auth.reducer.spec.ts`)
 - Task activity emission — assignee/story-point discrete events and unchanged-value no-ops (`tasks-activity.spec.ts`)
+- React API client — request shaping, auth header attachment, error mapping (`api-client.spec.ts`)
+- Auth guard `beforeLoad` redirect logic for unauthenticated users and admin-only routes (`auth-guard.spec.ts`)
+- Signup password-match validation via TanStack Form (`auth-landing.spec.tsx`)
+- Task board optimistic reorder `onMutate`/rollback behavior (`board-utils.spec.ts`)
 
 ---
 
