@@ -1,13 +1,8 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "module": "CommonJS",
-    "moduleResolution": "node",
-    "types": ["jest", "node"],
-    "jsx": "react-jsx",
-    "strict": true,
-    "noEmit": true,
-    "allowImportingTsExtensions": false
+    "types": ["jest", "node", "vite/client"],
+    "esModuleInterop": true
   },
   "exclude": ["node_modules", "dist", ".output"],
   "include": [

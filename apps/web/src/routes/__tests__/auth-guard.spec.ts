@@ -17,7 +17,7 @@ const mockGetStoredSession = jest.fn<StoredSession | null, []>();
 
 // The mock must be declared before any dynamic import/require of route modules.
 jest.mock('~/lib/auth-storage', () => ({
-  getStoredSession: (...args: unknown[]) => mockGetStoredSession(...args),
+  getStoredSession: () => mockGetStoredSession(),
   clearSession: jest.fn(),
   saveSession: jest.fn(),
 }));
@@ -135,7 +135,7 @@ describe('_admin beforeLoad guard', () => {
 
     // Re-apply mocks after resetModules.
     jest.mock('~/lib/auth-storage', () => ({
-      getStoredSession: (...args: unknown[]) => mockGetStoredSession(...args),
+      getStoredSession: () => mockGetStoredSession(),
       clearSession: jest.fn(),
       saveSession: jest.fn(),
     }));
