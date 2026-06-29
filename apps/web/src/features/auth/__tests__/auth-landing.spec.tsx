@@ -16,8 +16,14 @@ import { MantineProvider } from '@mantine/core';
 
 jest.mock('@tanstack/react-router', () => ({
   useNavigate: () => () => Promise.resolve(),
-  Link: ({ children, to, ...rest }: { children: React.ReactNode; to: string }) =>
-    React.createElement('a', { href: to, ...rest }, children),
+  Link: ({
+    children,
+    to,
+    ...rest
+  }: {
+    children: React.ReactNode;
+    to: string;
+  }) => React.createElement('a', { href: to, ...rest }, children),
 }));
 
 jest.mock('@tanstack/react-query', () => ({
@@ -59,7 +65,9 @@ type AuthMode = 'login' | 'signup';
 let AuthLanding: (props: { mode: AuthMode }) => any;
 
 beforeAll(() => {
-  AuthLanding = (require('../auth-landing') as { AuthLanding: typeof AuthLanding }).AuthLanding;
+  AuthLanding = (
+    require('../auth-landing') as { AuthLanding: typeof AuthLanding }
+  ).AuthLanding;
 });
 
 // ---------------------------------------------------------------------------
@@ -81,7 +89,9 @@ function renderAuthLanding(mode: AuthMode) {
 describe('AuthLanding smoke', () => {
   it('renders the login form without crashing', () => {
     renderAuthLanding('login');
-    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /sign in/i }),
+    ).toBeInTheDocument();
   });
 
   it('renders the signup form without crashing', () => {
@@ -130,9 +140,7 @@ describe('SignupForm password-match validation', () => {
     fireEvent.click(fields.submit);
 
     await waitFor(() => {
-      expect(
-        screen.getByText('Passwords do not match'),
-      ).toBeInTheDocument();
+      expect(screen.getByText('Passwords do not match')).toBeInTheDocument();
     });
   });
 
@@ -149,6 +157,7 @@ describe('SignupForm password-match validation', () => {
     fireEvent.change(fields.email, { target: { value: 'alice@example.com' } });
     fireEvent.change(fields.password, { target: { value: 'secret123' } });
     // Leave confirmPassword empty, then submit the <form> directly.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const form = container.querySelector('form')!;
     fireEvent.submit(form);
 

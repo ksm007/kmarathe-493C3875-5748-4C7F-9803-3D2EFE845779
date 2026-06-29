@@ -8,8 +8,11 @@ Object.assign(global, { TextEncoder, TextDecoder });
 // Mantine's SegmentedControl/FloatingIndicator uses ResizeObserver internally.
 // jsdom does not implement it, so provide a no-op stub.
 class ResizeObserverStub {
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   observe() {}
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   unobserve() {}
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   disconnect() {}
 }
 Object.assign(global, { ResizeObserver: ResizeObserverStub });

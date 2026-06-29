@@ -64,10 +64,8 @@ const mockRedirect = jest.fn((opts: { to: string }) => {
   throw err;
 });
 
-let capturedAuthedOptions: Record<string, unknown> = {};
 jest.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: Record<string, unknown>) => {
-    capturedAuthedOptions = options;
     return { options };
   },
   redirect: mockRedirect,
@@ -78,7 +76,6 @@ jest.mock('@tanstack/react-router', () => ({
 }));
 
 // Import after all jest.mock() calls so they are hoisted correctly.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { Route: authedRoute } = require('~/routes/_authed') as {
   Route: { options: { beforeLoad: () => { user: CurrentUser } } };
 };
@@ -123,7 +120,6 @@ describe('_authed beforeLoad guard', () => {
 // This module has minimal imports (Outlet, createFileRoute, redirect + Role/auth-storage),
 // so we test it in a fresh module scope by overriding the mock for createFileRoute.
 
-let capturedAdminOptions: Record<string, unknown> = {};
 // Re-mock createFileRoute to capture the admin guard options.
 // jest.mock() calls are de-duped per module ID; since we already mocked
 // @tanstack/react-router above we override the factory with resetModules.
@@ -142,14 +138,12 @@ describe('_admin beforeLoad guard', () => {
 
     jest.mock('@tanstack/react-router', () => ({
       createFileRoute: () => (options: Record<string, unknown>) => {
-        capturedAdminOptions = options;
         return { options };
       },
       redirect: mockRedirect,
       Outlet: () => null,
     }));
 
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { Route } = require('~/routes/_authed._admin') as {
       Route: { options: { beforeLoad: () => void } };
     };

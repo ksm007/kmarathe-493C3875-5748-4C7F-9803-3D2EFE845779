@@ -3,12 +3,13 @@
 // the real packages load cleanly in jsdom without any mocking needed.
 
 import type { Task, ReorderTasksRequest } from '@nx-temp/data';
-import { TaskStatus, TaskPriority, IssueType, TaskCategory } from '@nx-temp/data';
 import {
-  groupTasksByStatus,
-  mergeReorderedTasks,
-  mergeTasks,
-} from '../board';
+  TaskStatus,
+  TaskPriority,
+  IssueType,
+  TaskCategory,
+} from '@nx-temp/data';
+import { groupTasksByStatus, mergeReorderedTasks, mergeTasks } from '../board';
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -98,6 +99,7 @@ describe('mergeReorderedTasks', () => {
 
     const merged = mergeReorderedTasks(tasks, payload);
 
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const taskA = merged.find((t) => t.id === 'a')!;
     expect(taskA.status).toBe(TaskStatus.InProgress);
     expect(taskA.position).toBe(0);
@@ -113,6 +115,7 @@ describe('mergeReorderedTasks', () => {
     };
 
     const merged = mergeReorderedTasks(tasks, payload);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const taskB = merged.find((t) => t.id === 'b')!;
     expect(taskB.status).toBe(TaskStatus.Backlog);
     expect(taskB.position).toBe(0);
@@ -143,6 +146,7 @@ describe('mergeReorderedTasks', () => {
     };
     const optimistic = mergeReorderedTasks(tasks, payload);
 
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const moved = optimistic.find((t) => t.id === 't1')!;
     expect(moved.status).toBe(TaskStatus.InProgress);
 
@@ -189,6 +193,7 @@ describe('mergeTasks', () => {
     const merged = mergeTasks(current, [serverVersion]);
 
     expect(merged.find((t) => t.id === 'a')).toEqual(serverVersion);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     expect(merged.find((t) => t.id === 'b')!.status).toBe(TaskStatus.Backlog);
   });
 

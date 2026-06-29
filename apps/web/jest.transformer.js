@@ -30,9 +30,7 @@ module.exports = {
           tsx: isTSX,
           decorators: true,
         },
-        transform: isTSX
-          ? { react: { runtime: 'automatic' } }
-          : undefined,
+        transform: isTSX ? { react: { runtime: 'automatic' } } : undefined,
         target: 'es2022',
       },
       module: { type: 'commonjs' },

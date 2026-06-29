@@ -176,9 +176,7 @@ describe('error mapping', () => {
       caught = e;
     }
     expect(caught).toBeInstanceOf(ApiClientError);
-    expect((caught as ApiClientError).message).toBe(
-      'Request failed with 500',
-    );
+    expect((caught as ApiClientError).message).toBe('Request failed with 500');
   });
 
   it('returns null for an empty response body on a successful request', async () => {
